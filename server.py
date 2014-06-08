@@ -9,7 +9,8 @@ import re
 import logging
 from threading import Thread
 import signal
- 
+import json
+
 # Simple WebSocket server implementation. Handshakes with the client then echos back everything
 # that is received. Has no dependencies (doesn't require Twisted etc) and works with the RFC6455
 # version of WebSockets. Tested with FireFox 16, though should work with the latest versions of
@@ -27,64 +28,139 @@ BINARY = 0x02
 passwords = {'dave':'password', 'joe':'morepassword'}
 namemap = {}
 
-class ChatServer(Object):
-  def __init__(self):
-    # msg comes in, find user with fileno
-    self.packet_types = {'auth':{'handler': self.authenticate,
-                                 'fields':  ['user', 'pass']},
-                         'msg': {'handler': self.message,
-                                 'fields':  ['to', 'text', 'mode']}
-                
-
-    # { 1: "Dav3xor", 2: "Frank", 3: "Bob", 4: "Bob" ... }
-    self.connections_to_user  = {}
-
-    # { "Dav3xor": [1], "Frank": [2],  "Bob": [3,4] ... }
-    self.users_to_connections = {}
-
-    # { "Dav3xor": ["Dav3stown", "Admin"], 
-    self.users_to_channels    = {}
-
-    # { "Dav3stown": ["Dav3xor", "Bob", "Frank"] }
-    self.channel_to_users     = {}
-
+class ChatServer(object):
+  def __init__(self, bind, port, cls):
+    self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    self.socket.bind((bind, port))
+    self.bind = bind
+    self.port = port
+    self.cls = cls
+    self.listeners = [self.socket]
+    
     self.users                = {}
     self.channels             = {}
     self.connections          = {}
 
-  def authenticate(self, packet, connection):
-    username = packet['user']
-    password = packet['pass']
+    # msg comes in, find user with fileno
+    self.msg_types = {'auth':{'handler': self.authenticate,
+                              'fields':  ['type', 'user', 'pass']},
+                      'join':{'handler': self.join,
+                              'fields':  ['type', 'channel']},
+                      'msg': {'handler': self.message,
+                              'fields':  ['type', 'to', 'text', 'mode']} }
+                
+
+    # { 1: "Dav3xor", 2: "Frank", 3: "Bob", 4: "Bob" ... }
+    self.connection_to_user  = {}
+
+    # { "Dav3xor": [1], "Frank": [2],  "Bob": [3,4] ... }
+    self.user_to_connections = {}
+
+    # { "Dav3xor": set(["Dav3stown", "Admin"]), 
+    self.users_to_channels    = {}
+
+    # { "Dav3stown": set(["Dav3xor", "Bob", "Frank"]) }
+    self.channel_to_users     = {}
+
+  def dispatch(self, msg, fileno):
+    logging.info("Msg --> %s" % msg)
+    msg = json.loads(msg)
+    self.msg_types[msg['type']]['handler'](msg, fileno)
+
+  def listen(self, backlog=5):
+
+    self.socket.listen(backlog)
+    logging.info("Listening on %s" % self.port)
+
+    # Keep serving requests
+    self.running = True
+    while self.running:
+    
+      # Find clients that need servicing
+      rList, wList, xList = select(self.listeners, [], self.listeners, 1)
+      for ready in rList:
+        if ready == self.socket:
+          logging.debug("New client connection")
+          client, address = self.socket.accept()
+          fileno = client.fileno()
+          self.listeners.append(fileno)
+          self.connections[fileno] = self.cls(client, self)
+        else:
+          logging.debug("Client ready for reading %s" % ready)
+          client = self.connections[ready].client
+          data = client.recv(4096)
+          fileno = client.fileno()
+          if data:
+            msg = self.connections[fileno].decode(data)
+            if msg:
+              self.dispatch(msg, fileno)
+          else:
+            logging.debug("Closing client %s" % ready)
+            self.connections[fileno].close()
+            del self.connections[fileno]
+            self.listeners.remove(ready)
+      
+    # Step though and delete broken connections
+    for failed in xList:
+      if failed == self.socket:
+        logging.error("Socket broke")
+        for connection in self.connections:
+          connection.close()
+        self.running = False
+
+  def authenticate(self, msg, fileno):
+    username = msg['user']
+    password = msg['pass']
     # TODO: switch over to storing user crap in db
     if password == passwords[username]:
-      addUserConnection(username, connection.fileno)
+      logging.info("User Login --> %s" % (username))
+      self.addUserConnection(username, fileno)
+    else:
+      logging.info("User Login Failed --> %s" % (username))
 
-  def message(self, packet, connection):
-    username     = self.connections_to_user(connection.fileno)
-    if packet['mode'] == 'to channel':
-      channel        =  packet['to']
-      packet['from'] = username
-      users          =  self.channel_to_users[channel]
-      filenoes       =  itertools.chain(*[self.users_to_connections[i] for i in users])
-       
-  def broadcast(self, packet, filenos):
-    msg = JSON.dumps(packet)
+  def join(self, msg, fileno):
+    username     = self.connection_to_user(fileno)
+    channel      = msg['channel']
+
+    if not self.users_to_channels.has_key[username]:
+      self.users_to_channels[username] = set()
+    self.users_to_channels[username].add(msg['channel'])
+    
+    if not self.channel_to_users.has_key[channel]:
+      self.channel_to_users[channel] = set()
+    self.channel_to_users[channel].add(username)
+    
+    logging.info("Join Channel --> %s to %s " % (username,channel))
+    
+  def message(self, msg, fileno):
+    username     = self.connection_to_user(fileno)
+    if msg['mode'] == 'to channel':
+      channel        = msg['to']
+      msg['from']    = username
+      users          = self.channel_to_users[channel]
+      filenos        = itertools.chain(*[self.user_to_connections[i] for i in users])
+
+      self.broadcast(msg,filenos)
+
+  def broadcast(self, msg, filenos):
+    msg = json.dumps(msg)
     for fileno in filenos:
-      self.connections[fileno].connection.sendMessage(msg)
+      self.connections[fileno].sendMessage(msg)
 
-  def addUserConnection(self, username, connection.fileno):
-    if not users.has_key(username):
+  def addUserConnection(self, username, fileno):
+    if not self.users.has_key(username):
       user = User(username)
-      users[username] = user
-    if connections_to_user.has_key(connection.fileno):
+      self.users[username] = user
+    if self.connection_to_user.has_key(fileno):
       print "Stale fileno?"
       #TODO: set up exception for weird states
     else:
-      connections_to_user[connection.fileno] = username
+      self.connection_to_user[fileno] = username
 
-    if not users_to_connections.has_key(username):
-      users_to_connections[username] = []
-    users_to_connections.append(connection.fileno)
+    if not self.user_to_connections.has_key(username):
+      self.user_to_connections[username] = set()
+    self.user_to_connections[username].add(fileno)
 
   
 
@@ -134,7 +210,7 @@ class WebSocket(object):
 
 
   # Serve this client
-  def feed(self, data):
+  def decode(self, data):
 
     # If we haven't handshaken yet
     if not self.handshaken:
@@ -283,67 +359,12 @@ class WebSocket(object):
     self.client.close()
  
  
-# WebSocket server implementation
-class WebSocketServer(object):
-
-  # Constructor
-  def __init__(self, bind, port, cls):
-    self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    self.socket.bind((bind, port))
-    self.bind = bind
-    self.port = port
-    self.cls = cls
-    self.connections = {}
-    self.listeners = [self.socket]
-
-  # Listen for requests
-  def listen(self, backlog=5):
-
-    self.socket.listen(backlog)
-    logging.info("Listening on %s" % self.port)
-
-    # Keep serving requests
-    self.running = True
-    while self.running:
-    
-      # Find clients that need servicing
-      rList, wList, xList = select(self.listeners, [], self.listeners, 1)
-      for ready in rList:
-        if ready == self.socket:
-          logging.debug("New client connection")
-          client, address = self.socket.accept()
-          fileno = client.fileno()
-          self.listeners.append(fileno)
-          self.connections[fileno] = Connection(self.cls(client, self))
-        else:
-          logging.debug("Client ready for reading %s" % ready)
-          client = self.connections[ready].connection.client
-          data = client.recv(4096)
-          fileno = client.fileno()
-          if data:
-            msg = self.connections[fileno].connection.feed(data)
-            if msg:
-              self.connections[fileno].connection.sendMessage(msg)
-          else:
-            logging.debug("Closing client %s" % ready)
-            self.connections[fileno].connection.close()
-            del self.connections[fileno]
-            self.listeners.remove(ready)
-      
-    # Step though and delete broken connections
-    for failed in xList:
-      if failed == self.socket:
-        logging.error("Socket broke")
-        for connection in self.connections:
-          connection.connection.close()
-        self.running = False
  
 # Entry point
 if __name__ == "__main__":
  
   logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
-  server = WebSocketServer("", 8000, WebSocket)
+  server = ChatServer("", 8000, WebSocket)
   server_thread = Thread(target=server.listen, args=[5])
   server_thread.start()
 
