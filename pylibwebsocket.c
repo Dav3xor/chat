@@ -201,7 +201,9 @@ static PyObject *WebSocket_register_protocol(WebSocketObject *self, PyObject *ar
 PyObject *func;
 PyObject *name;
   if ( PyArg_ParseTuple(args, "OO", &name, &func)) {
-    realloc(self->protocols,sizeof(struct libwebsocket_protocols)*self->numprotocols+2);
+    self->protocols = realloc(self->protocols,
+                              sizeof(struct libwebsocket_protocols) *
+                                     self->numprotocols+2);
     if(!self->protocols) {
       Py_RETURN_NONE;
     }
@@ -240,14 +242,11 @@ static PyMethodDef WebSocket_methods[] = {
   {"run", (PyCFunction)WebSocket_run, METH_VARARGS,
    "Run websocket server (for n milliseconds)"
   },
-  {"run", (PyCFunction)WebSocket_register_protocol, METH_VARARGS,
-   "Run websocket server (for n milliseconds)"
+  {"register", (PyCFunction)WebSocket_register_protocol, METH_VARARGS,
+   "bind a protocol name to a callback function"
   },
-  {"run", (PyCFunction)WebSocket_dispatch, METH_VARARGS,
-   "Run websocket server (for n milliseconds)"
-  },
-  {"run", (PyCFunction)WebSocket_listen, METH_VARARGS,
-   "Run websocket server (for n milliseconds)"
+  {"listen", (PyCFunction)WebSocket_listen, METH_VARARGS,
+   "tell lib websockets to start listening"
   },
   {NULL}  /* Sentinel */
 };
@@ -256,7 +255,7 @@ static PyMethodDef WebSocket_methods[] = {
 static PyTypeObject WebSocketType = {
   PyObject_HEAD_INIT(NULL)
   0,                         /*ob_size*/
-  "libwebsocket.WebSocket",  /*tp_name*/
+  "pylws.WebSocket",  /*tp_name*/
   sizeof(WebSocketObject), /*tp_basicsize*/
   0,                         /*tp_itemsize*/
   (destructor)WebSocket_dealloc, /*tp_dealloc*/
@@ -275,10 +274,7 @@ static PyTypeObject WebSocketType = {
   0,                         /*tp_setattro*/
   0,                         /*tp_as_buffer*/
   Py_TPFLAGS_DEFAULT,        /*tp_flags*/
-  "LibWebSocket is a Python C extension library that implements a data structure\n"
-  "useful for doing spatial indexing.  If you have thousands of objects, and\n"
-  "need to quickly find out what objects are close to each other, this class\n"
-  "is very useful.\n",
+  "pylws is a Python wrapper for the C libwebsockets library.\n",
   0,                   /* tp_traverse */
   0,                   /* tp_clear */
   0,                   /* tp_richcompare */
@@ -303,7 +299,7 @@ static PyTypeObject WebSocketType = {
 #define PyMODINIT_FUNC void
 #endif
 PyMODINIT_FUNC
-initwebsocket(void) 
+initpylws(void) 
 {
   PyObject* m;
 
