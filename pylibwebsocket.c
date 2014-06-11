@@ -10,6 +10,7 @@ typedef struct {
   struct       libwebsocket_context      *context;
   struct       libwebsocket_protocols    *protocols;
                PyObject                  *dispatch;
+               PyObject                  *urls;
   struct       lws_context_creation_info info;
   unsigned int numprotocols;
   bool         running; 
@@ -50,7 +51,11 @@ static int WebSocket_dispatch (struct libwebsocket_context * this,
                                size_t len)
 {
     const struct libwebsocket_protocols *cur_protocol;
-    WebSocketObject *self=user;
+    WebSocketObject *self=libwebsocket_context_user(this);
+    if(!self) {
+      printf("user pointer not initialized\n");
+    }
+
     // reason for callback
     switch (reason) {
 
@@ -76,6 +81,7 @@ static int WebSocket_http_callback(struct libwebsocket_context *context,
                          enum libwebsocket_callback_reasons reason, void *user,
                          void *in, size_t len)
 {
+    WebSocketObject *self=libwebsocket_context_user(context);
     int return_value = 0; 
     switch (reason) {
         // http://git.warmcat.com/cgi-bin/cgit/libwebsockets/tree/lib/libwebsockets.h#n260
@@ -83,65 +89,47 @@ static int WebSocket_http_callback(struct libwebsocket_context *context,
             printf("connection established\n");
             
         // http://git.warmcat.com/cgi-bin/cgit/libwebsockets/tree/lib/libwebsockets.h#n281
-        case LWS_CALLBACK_HTTP: {
+        case LWS_CALLBACK_HTTP: 
             char *requested_uri = (char *) in;
             printf("requested URI: %s\n", requested_uri);
-            
-            if (strcmp(requested_uri, "/") == 0) {
-                void *universal_response = "Hello, World!";
-                // http://git.warmcat.com/cgi-bin/cgit/libwebsockets/tree/lib/libwebsockets.h#n597
-                libwebsocket_write(wsi, universal_response,
-                                   strlen(universal_response), LWS_WRITE_HTTP);
-                break;
- 
-            } else {
-                // try to get current working directory
-                char cwd[1024];
-                char *resource_path;
+           
+            PyObject *pyfile = PyDict_GetItemString(self->urls, requested_uri);
+            if(pyfile && PyObject_TypeCheck(pyfile, &PyString_Type)) {
+                char *file      = PyString_AsString(pyfile);   
+                printf("on disk: %s\n", file);
+                char *extension = strrchr(requested_uri, '.');
+                char *mime;
                 
-                if (getcwd(cwd, sizeof(cwd)) != NULL) {
-                    // allocate enough memory for the resource path
-                    resource_path = malloc(strlen(cwd) + strlen(requested_uri));
-                    
-                    // join current working direcotry to the resource path
-                    sprintf(resource_path, "%s%s", cwd, requested_uri);
-                    printf("resource path: %s\n", resource_path);
-                    
-                    char *extension = strrchr(resource_path, '.');
-                    char *mime;
-                    
-                    // choose mime type based on the file extension
-                    if (extension == NULL) {
-                        mime = "text/plain";
-                    } else if (strcmp(extension, ".png") == 0) {
-                        mime = "image/png";
-                    } else if (strcmp(extension, ".jpg") == 0) {
-                        mime = "image/jpg";
-                    } else if (strcmp(extension, ".gif") == 0) {
-                        mime = "image/gif";
-                    } else if (strcmp(extension, ".html") == 0) {
-                        mime = "text/html";
-                    } else if (strcmp(extension, ".css") == 0) {
-                        mime = "text/css";
-                    } else {
-                        mime = "text/plain";
-                    }
-                    
-                    // by default non existing resources return code 400
-                    // for more information how this function handles headers
-                    // see it's source code
-                    // http://git.warmcat.com/cgi-bin/cgit/libwebsockets/tree/lib/parsers.c#n1896
-                    libwebsockets_serve_http_file(context, wsi, resource_path, mime, NULL);
-                    free(resource_path); 
+                // choose mime type based on the file extension
+                if (extension == NULL) {
+                    mime = "text/plain";
+                } else if (strcmp(extension, ".png") == 0) {
+                    mime = "image/png";
+                } else if (strcmp(extension, ".jpg") == 0) {
+                    mime = "image/jpg";
+                } else if (strcmp(extension, ".gif") == 0) {
+                    mime = "image/gif";
+                } else if (strcmp(extension, ".html") == 0) {
+                    mime = "text/html";
+                } else if (strcmp(extension, ".css") == 0) {
+                    mime = "text/css";
+                } else {
+                    mime = "text/plain";
                 }
+                
+                // by default non existing resources return code 400
+                // for more information how this function handles headers
+                // see it's source code
+                // http://git.warmcat.com/cgi-bin/cgit/libwebsockets/tree/lib/parsers.c#n1896
+                libwebsockets_serve_http_file(context, wsi, file, mime, NULL);
             }
             
             // close connection
             return_value = -1;
             break;
-        }
+        
         default:
-            printf("unhandled callback\n");
+            //printf("unhandled callback\n");
             break;
     }
     
@@ -155,16 +143,18 @@ static int WebSocket_http_callback(struct libwebsocket_context *context,
 static int WebSocket_init(WebSocketObject *self, 
                           PyObject *args)
 {
-  int   port;
-  char *interface;
-  char *cert_path;
-  char *key_path;
-
-  if (! PyArg_ParseTuple(args, "siss", 
+  int        port;
+  char      *interface;
+  char      *cert_path;
+  char      *key_path;
+  PyObject  *urls;
+  printf("a\n");
+  if (! PyArg_ParseTuple(args, "sissO", 
                          &interface, &port,
-                         &cert_path, &key_path)) {
+                         &cert_path, &key_path, &urls)) {
     return -1;
   }
+  printf("b\n");
   self->protocols = malloc(sizeof(struct libwebsocket_protocols)*2);
   if(!self->protocols) {
     return -1;
@@ -177,10 +167,11 @@ static int WebSocket_init(WebSocketObject *self,
     self->protocols[1].callback              = NULL;
     self->protocols[1].per_session_data_size = 0;
   }
-
+  self->numprotocols = 1;
   self->running                       = false;
 
   self->dispatch                      = PyDict_New();
+  self->urls                          = urls;
   if(!self->dispatch) {
     return -1;
   }
@@ -189,30 +180,29 @@ static int WebSocket_init(WebSocketObject *self,
   self->info.iface                    = interface;
   self->info.protocols                = self->protocols;
   self->info.extensions               = NULL;
-  self->info.ssl_cert_filepath        = cert_path;
-  self->info.ssl_private_key_filepath = key_path;
+  self->info.ssl_cert_filepath        = NULL;  //cert_path;
+  self->info.ssl_private_key_filepath = NULL;  //key_path;
   self->info.options = 0; 
   self->info.user = (void *)self;
+  printf("c\n");
   return 0;
 }
 
 static PyObject *WebSocket_register_protocol(WebSocketObject *self, PyObject *args)
 {
+printf("x %d\n",self->numprotocols);
 PyObject *func;
 PyObject *name;
   if ( PyArg_ParseTuple(args, "OO", &name, &func)) {
-    self->protocols = realloc(self->protocols,
-                              sizeof(struct libwebsocket_protocols) *
-                                     self->numprotocols+2);
+    size_t nextsize = sizeof(struct libwebsocket_protocols)*(self->numprotocols+2);
+    self->protocols = realloc(self->protocols, nextsize);
     if(!self->protocols) {
       Py_RETURN_NONE;
     }
-
+    self->info.protocols = self->protocols;
     PyDict_SetItem(self->dispatch, name, func);
-
-    memcpy(&self->protocols[self->numprotocols],
-           &self->protocols[self->numprotocols+1],
-           sizeof(struct libwebsocket_protocols));
+    self->protocols[self->numprotocols+1] = self->protocols[self->numprotocols];
+    
     Py_ssize_t namelen = PyString_Size(name);
     char *namestr = malloc(namelen+1);
     if(!namestr){
@@ -231,10 +221,11 @@ PyObject *name;
 static void WebSocket_dealloc(WebSocketObject *self)
 { 
   //libwebsocket_context_destroy(self->context);
-  for (int i=0; i<self->numprotocols; i++) {
+  for (int i=1; i<self->numprotocols; i++) {
     free((void *)self->protocols[i].name);
   }
   free(self->protocols);
+  Py_DECREF(self->dispatch);
   self->ob_type->tp_free((PyObject*)self);
 }
 

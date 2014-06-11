@@ -1,13 +1,19 @@
 import pylws
 
+print "1"
 listener = pylws.WebSocket('127.0.0.1', 8000,
                            '/home/dave/blah.cert',
-                           '/home/dave/blah.key')
+                           '/home/dave/blah.key', {'/': '/home/dave/chat/server.py'})
 
 
 def handler(protocol, msg):
   print msg
 
+print "2"
 listener.register('local_echo', handler)
+print "3"
 listener.listen()
-listern.run(10)
+print "4"
+while 1:
+  listener.run(100)
+print "5"
