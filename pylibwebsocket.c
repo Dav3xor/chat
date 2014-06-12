@@ -89,7 +89,7 @@ static int WebSocket_http_callback(struct libwebsocket_context *context,
             printf("connection established\n");
             
         // http://git.warmcat.com/cgi-bin/cgit/libwebsockets/tree/lib/libwebsockets.h#n281
-        case LWS_CALLBACK_HTTP: 
+        case LWS_CALLBACK_HTTP: {
             char *requested_uri = (char *) in;
             printf("requested URI: %s\n", requested_uri);
            
@@ -127,7 +127,7 @@ static int WebSocket_http_callback(struct libwebsocket_context *context,
             // close connection
             return_value = -1;
             break;
-        
+        }
         default:
             //printf("unhandled callback\n");
             break;
@@ -194,12 +194,16 @@ printf("x %d\n",self->numprotocols);
 PyObject *func;
 PyObject *name;
   if ( PyArg_ParseTuple(args, "OO", &name, &func)) {
+
     size_t nextsize = sizeof(struct libwebsocket_protocols)*(self->numprotocols+2);
+    
     self->protocols = realloc(self->protocols, nextsize);
+    
     if(!self->protocols) {
       Py_RETURN_NONE;
     }
     self->info.protocols = self->protocols;
+    
     PyDict_SetItem(self->dispatch, name, func);
     self->protocols[self->numprotocols+1] = self->protocols[self->numprotocols];
     
@@ -208,12 +212,14 @@ PyObject *name;
     if(!namestr){
       Py_RETURN_NONE;
     }
-    strncpy(namestr,PyString_AsString(name), namelen);
+    printf("pystring = %s len = %d\n",PyString_AsString(name),PyString_Size(name));
+    strncpy(namestr,PyString_AsString(name), namelen+1);
     
     self->protocols[self->numprotocols].name                  = namestr;
     self->protocols[self->numprotocols].callback              = WebSocket_dispatch;
     self->protocols[self->numprotocols].per_session_data_size = 0;
     self->numprotocols++;
+    printf("new protocol --> %s\n", namestr);
   }
   // TODO: Raise ValueError here  
   Py_RETURN_NONE;

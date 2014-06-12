@@ -3,7 +3,8 @@ import pylws
 print "1"
 listener = pylws.WebSocket('127.0.0.1', 8000,
                            '/home/dave/blah.cert',
-                           '/home/dave/blah.key', {'/': '/home/dave/chat/server.py'})
+                           '/home/dave/blah.key', 
+                           {'/': '/home/dave/chat/server.py'})
 
 
 def handler(protocol, msg):
