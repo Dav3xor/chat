@@ -11,6 +11,7 @@ typedef struct {
   struct       libwebsocket_protocols    *protocols;
                PyObject                  *dispatch;
                PyObject                  *urls;
+               PyObject                  *connections;
   struct       lws_context_creation_info info;
   unsigned int numprotocols;
   bool         running; 
@@ -59,9 +60,27 @@ static int WebSocket_dispatch (struct libwebsocket_context * this,
     // reason for callback
     switch (reason) {
 
-        case LWS_CALLBACK_ESTABLISHED:
+        case LWS_CALLBACK_ESTABLISHED: {
+            int fd = libwebsocket_get_socket_fd(wsi);
+
+            PyObject *connection = PyCObject_FromVoidPtr(wsi, NULL);
+            if (!connection) {
+              printf ("can't allocate new python connection reference\n");
+              return -1;
+            }
+            PyObject *key = PyInt_FromLong(fd);
+
+            if (!key) {
+              printf ("cannot allocate python connection key\n");
+              return -1;
+            }
+
+            PyDict_SetItem(self->connections, key, connection);
+            Py_DECREF(key);
+            Py_DECREF(connection);
             printf("connection established\n");
             break;
+        }
 
         case LWS_CALLBACK_RECEIVE: {
             cur_protocol = libwebsockets_get_protocol (wsi);
@@ -70,6 +89,13 @@ static int WebSocket_dispatch (struct libwebsocket_context * this,
               PyObject_CallFunction(callback, "ss", cur_protocol, in);
             }            
             printf("received data: %s\n", (char *) in);
+            break;
+        }
+        case LWS_CALLBACK_CLOSED: {
+              int fd = libwebsocket_get_socket_fd(wsi);
+              PyObject *key = PyInt_FromLong(fd);
+              PyDict_DelItem(self->connections, key);
+              printf("connection dropped (%d)\n",fd);
             break;
         }
     }
@@ -171,6 +197,7 @@ static int WebSocket_init(WebSocketObject *self,
   self->running                       = false;
 
   self->dispatch                      = PyDict_New();
+  self->connections                   = PyDict_New();
   self->urls                          = urls;
   if(!self->dispatch) {
     return -1;
@@ -196,12 +223,12 @@ PyObject *name;
   if ( PyArg_ParseTuple(args, "OO", &name, &func)) {
 
     size_t nextsize = sizeof(struct libwebsocket_protocols)*(self->numprotocols+2);
-    
     self->protocols = realloc(self->protocols, nextsize);
     
     if(!self->protocols) {
       Py_RETURN_NONE;
     }
+
     self->info.protocols = self->protocols;
     
     PyDict_SetItem(self->dispatch, name, func);
