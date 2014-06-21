@@ -21,15 +21,42 @@ typedef struct {
 
 static PyObject * WebSocket_listen (WebSocketObject *self, PyObject *args)
 {
-  if(self->context) {
-    //libwebsocket_context_destroy(self->context);
-  }
-
   self->context = libwebsocket_create_context (&self->info);
   self->running = true;
   Py_RETURN_NONE;
 
 }
+
+static PyObject * WebSocket_write (WebSocketObject *self, PyObject *args)
+{
+  int fd;
+  char *output;
+  printf("hi\n");
+  Py_INCREF(self);
+  if (!( PyArg_ParseTuple(args, "is", &fd, &output))) {
+    return -1;
+  }
+  printf("write: fd=%d, '%s'\n",fd,output);
+   
+  PyObject *key = PyInt_FromLong(fd);
+  if (!key) {
+    printf ("cannot allocate python connection key\n");
+    return -1;
+  }
+   
+  PyObject *pyconn = PyDict_GetItem(self->connections, key);
+  printf("pyconn = %p", pyconn); 
+  struct libwebsocket *writelws = (struct libwebsocket *)PyCObject_AsVoidPtr(pyconn);
+  printf("writelws = %p", writelws); 
+  
+  Py_DECREF(key);
+  Py_DECREF(pyconn);
+   
+  Py_DECREF(self);
+  Py_RETURN_NONE;
+
+}
+
 
 static PyObject * WebSocket_run (WebSocketObject *self, PyObject *args)
 {
@@ -53,6 +80,12 @@ static int WebSocket_dispatch (struct libwebsocket_context * this,
 {
     const struct libwebsocket_protocols *cur_protocol;
     WebSocketObject *self=libwebsocket_context_user(this);
+    int fd = -1;
+    
+    if(wsi) {
+      fd = libwebsocket_get_socket_fd(wsi);
+    }
+
     if(!self) {
       printf("user pointer not initialized\n");
     }
@@ -61,7 +94,6 @@ static int WebSocket_dispatch (struct libwebsocket_context * this,
     switch (reason) {
 
         case LWS_CALLBACK_ESTABLISHED: {
-            int fd = libwebsocket_get_socket_fd(wsi);
 
             PyObject *connection = PyCObject_FromVoidPtr(wsi, NULL);
             if (!connection) {
@@ -86,7 +118,8 @@ static int WebSocket_dispatch (struct libwebsocket_context * this,
             cur_protocol = libwebsockets_get_protocol (wsi);
             PyObject *callback = PyDict_GetItemString(self->dispatch,cur_protocol->name);
             if(callback) {
-              PyObject_CallFunction(callback, "ss", cur_protocol, in);
+              PyObject_CallFunction(callback, "Oiss", 
+                                    self, fd, cur_protocol, in);
             }            
             printf("received data: %s\n", (char *) in);
             break;
@@ -103,9 +136,9 @@ static int WebSocket_dispatch (struct libwebsocket_context * this,
 }
 
 static int WebSocket_http_callback(struct libwebsocket_context *context,
-                         struct libwebsocket *wsi,
-                         enum libwebsocket_callback_reasons reason, void *user,
-                         void *in, size_t len)
+                                   struct libwebsocket *wsi,
+                                   enum libwebsocket_callback_reasons reason, void *user,
+                                   void *in, size_t len)
 {
     WebSocketObject *self=libwebsocket_context_user(context);
     int return_value = 0; 
@@ -271,6 +304,9 @@ static PyMethodDef WebSocket_methods[] = {
   },
   {"listen", (PyCFunction)WebSocket_listen, METH_VARARGS,
    "tell lib websockets to start listening"
+  },
+  {"write", (PyCFunction)WebSocket_write, METH_VARARGS,
+   "tell lib websockets to write to a socket"
   },
   {NULL}  /* Sentinel */
 };

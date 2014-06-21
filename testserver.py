@@ -7,8 +7,9 @@ listener = pylws.WebSocket('127.0.0.1', 8000,
                            {'/': '/home/dave/chat/server.py'})
 
 
-def handler(protocol, msg):
-  print msg
+def handler(ws, fd, protocol, msg):
+  ws.write(fd,"hello");
+  #print msg
 
 print "2"
 listener.register('local_echo', handler)
