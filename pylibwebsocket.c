@@ -4,20 +4,42 @@
 #include <stdbool.h>
 #include <Python.h>
 
+/* PYTHON OBJECTS:
+   borrowed == you don't have control of it, DON'T DECREF, DON'T RETURN IT
+   new      == you have control, DECREF it, or RETURN IT.
+*/
+
 typedef struct {
   PyObject_HEAD
   /* Type-specific fields go here. */
-  struct       libwebsocket_context      *context;
-  struct       libwebsocket_protocols    *protocols;
-               PyObject                  *dispatch;
-               PyObject                  *urls;
-               PyObject                  *connections;
   struct       lws_context_creation_info info;
   unsigned int numprotocols;
   bool         running; 
+  struct       libwebsocket_context      *context;
+  struct       libwebsocket_protocols    *protocols;
+               PyObject                  *dispatch;
+               PyObject                  *deque;
+               PyObject                  *queues;
+               PyObject                  *urls;
+               PyObject                  *connections;
 } WebSocketObject;
 
+void init_protocol(struct libwebsocket_protocols *protocol){
+  memset((void *)protocol, 0, sizeof(struct libwebsocket_protocols));
+}
 
+void repr(PyObject *obj){
+  if(!obj) {
+    printf("obj = NULL\n");
+  }
+  Py_INCREF(obj);
+  PyObject *repr = PyObject_Repr(obj);
+  const char* s = PyString_AsString(repr);
+  printf("repr = %s\n",s);
+  Py_DECREF(repr);
+
+  Py_DECREF(obj);
+}
 
 static PyObject * WebSocket_listen (WebSocketObject *self, PyObject *args)
 {
@@ -27,32 +49,34 @@ static PyObject * WebSocket_listen (WebSocketObject *self, PyObject *args)
 
 }
 
+
+
+
 static PyObject * WebSocket_write (WebSocketObject *self, PyObject *args)
 {
+
   int fd;
   char *output;
-  printf("hi\n");
-  Py_INCREF(self);
+
   if (!( PyArg_ParseTuple(args, "is", &fd, &output))) {
-    return -1;
+    return NULL;
   }
   printf("write: fd=%d, '%s'\n",fd,output);
    
-  PyObject *key = PyInt_FromLong(fd);
-  if (!key) {
-    printf ("cannot allocate python connection key\n");
-    return -1;
+  PyObject *key = PyInt_FromLong(fd);                                                   // new reference
+  if (key) {
+    PyObject *pyconn = PyDict_GetItem(self->connections, key);                            // borrowed reference
+    if (pyconn) {
+      struct libwebsocket *writelws = (struct libwebsocket *)PyCObject_AsVoidPtr(pyconn);
+      printf("writelws = %p", writelws); 
+      Py_RETURN_NONE;
+    } else {
+      Py_DECREF(key);
+      return NULL;
+    }
+    Py_DECREF(key);
   }
-   
-  PyObject *pyconn = PyDict_GetItem(self->connections, key);
-  printf("pyconn = %p", pyconn); 
-  struct libwebsocket *writelws = (struct libwebsocket *)PyCObject_AsVoidPtr(pyconn);
-  printf("writelws = %p", writelws); 
-  
-  Py_DECREF(key);
-  Py_DECREF(pyconn);
-   
-  Py_DECREF(self);
+
   Py_RETURN_NONE;
 
 }
@@ -80,6 +104,7 @@ static int WebSocket_dispatch (struct libwebsocket_context * this,
 {
     const struct libwebsocket_protocols *cur_protocol;
     WebSocketObject *self=libwebsocket_context_user(this);
+    
     int fd = -1;
     
     if(wsi) {
@@ -94,20 +119,39 @@ static int WebSocket_dispatch (struct libwebsocket_context * this,
     switch (reason) {
 
         case LWS_CALLBACK_ESTABLISHED: {
+            cur_protocol = libwebsockets_get_protocol (wsi);
+            PyObject *connection = PyCObject_FromVoidPtr(wsi, NULL);            // new reference
+            PyObject *newqueue = NULL;
 
-            PyObject *connection = PyCObject_FromVoidPtr(wsi, NULL);
             if (!connection) {
               printf ("can't allocate new python connection reference\n");
               return -1;
             }
-            PyObject *key = PyInt_FromLong(fd);
+            PyObject *key = PyInt_FromLong(fd);                                 // new reference
 
             if (!key) {
               printf ("cannot allocate python connection key\n");
               return -1;
             }
 
+            if (self->deque) {
+
+              newqueue = PyEval_CallFunction(self->deque,"()");
+              if(!newqueue) {
+                printf("newqueue fail\n");
+                return -1;
+              }
+            }
             PyDict_SetItem(self->connections, key, connection);
+            PyDict_SetItem(self->queues, key, newqueue); 
+            PyObject *handler = PyDict_GetItemString(self->dispatch,
+                                                     cur_protocol->name); // borrowed reference
+            if(handler) {
+              Py_INCREF(handler);
+              PyObject_CallMethod(handler, "new_connection", "Ois", 
+                                self, fd, cur_protocol);
+              Py_DECREF(handler);
+            }            
             Py_DECREF(key);
             Py_DECREF(connection);
             printf("connection established\n");
@@ -116,19 +160,33 @@ static int WebSocket_dispatch (struct libwebsocket_context * this,
 
         case LWS_CALLBACK_RECEIVE: {
             cur_protocol = libwebsockets_get_protocol (wsi);
-            PyObject *callback = PyDict_GetItemString(self->dispatch,cur_protocol->name);
-            if(callback) {
-              PyObject_CallFunction(callback, "Oiss", 
-                                    self, fd, cur_protocol, in);
-            }            
-            printf("received data: %s\n", (char *) in);
+            PyObject *handler = PyDict_GetItemString(self->dispatch,
+                                                     cur_protocol->name); // borrowed reference
+            
+            if(handler) {
+              Py_INCREF(handler);
+              PyEval_CallMethod(handler, "recieve_data", "Oiss",  
+                                self, fd, cur_protocol, in);
+              Py_DECREF(handler);
+            }
             break;
         }
         case LWS_CALLBACK_CLOSED: {
-              int fd = libwebsocket_get_socket_fd(wsi);
-              PyObject *key = PyInt_FromLong(fd);
-              PyDict_DelItem(self->connections, key);
-              printf("connection dropped (%d)\n",fd);
+            cur_protocol = libwebsockets_get_protocol (wsi);                              
+            PyObject *handler = PyDict_GetItemString(self->dispatch,
+                                                     cur_protocol->name);  // borrowed reference
+            int fd = libwebsocket_get_socket_fd(wsi);
+            PyObject *key = PyInt_FromLong(fd);                            // new reference
+            if(handler) {
+              Py_INCREF(handler);
+              PyEval_CallMethod(handler, "closed_connection", "Oiss", 
+                                self, fd, cur_protocol);
+              Py_DECREF(handler);
+            }            
+            PyDict_DelItem(self->connections, key);
+            PyDict_DelItem(self->queues, key);
+            Py_DECREF(key);
+            printf("connection dropped (%d)\n",fd);
             break;
         }
     }
@@ -152,7 +210,8 @@ static int WebSocket_http_callback(struct libwebsocket_context *context,
             char *requested_uri = (char *) in;
             printf("requested URI: %s\n", requested_uri);
            
-            PyObject *pyfile = PyDict_GetItemString(self->urls, requested_uri);
+            PyObject *pyfile = PyDict_GetItemString(self->urls, 
+                                                    requested_uri); // borrowed reference
             if(pyfile && PyObject_TypeCheck(pyfile, &PyString_Type)) {
                 char *file      = PyString_AsString(pyfile);   
                 printf("on disk: %s\n", file);
@@ -198,7 +257,6 @@ static int WebSocket_http_callback(struct libwebsocket_context *context,
 
 
 
-
 static int WebSocket_init(WebSocketObject *self, 
                           PyObject *args)
 {
@@ -207,17 +265,17 @@ static int WebSocket_init(WebSocketObject *self,
   char      *cert_path;
   char      *key_path;
   PyObject  *urls;
-  printf("a\n");
+  PyObject  *collections;
   if (! PyArg_ParseTuple(args, "sissO", 
                          &interface, &port,
                          &cert_path, &key_path, &urls)) {
     return -1;
   }
-  printf("b\n");
   self->protocols = malloc(sizeof(struct libwebsocket_protocols)*2);
   if(!self->protocols) {
     return -1;
   } else {
+    init_protocol(&self->protocols[0]);
     self->protocols[0].name                  = "http-only";
     self->protocols[0].callback              = WebSocket_http_callback;
     self->protocols[0].per_session_data_size = 0;
@@ -227,10 +285,19 @@ static int WebSocket_init(WebSocketObject *self,
     self->protocols[1].per_session_data_size = 0;
   }
   self->numprotocols = 1;
-  self->running                       = false;
+  self->running = false;
 
-  self->dispatch                      = PyDict_New();
-  self->connections                   = PyDict_New();
+  collections   = PyImport_ImportModule("collections");       // new reference
+  if(collections) {
+    self->deque = PyObject_GetAttrString(collections, "deque"); // new reference
+    if(!(self->deque)) {
+      return -1;
+    }
+    Py_DECREF(collections);
+  }
+  self->dispatch                      = PyDict_New();           // new reference
+  self->connections                   = PyDict_New();           // new reference;
+  self->queues                        = PyDict_New();           // new reference;
   self->urls                          = urls;
   if(!self->dispatch) {
     return -1;
@@ -250,10 +317,9 @@ static int WebSocket_init(WebSocketObject *self,
 
 static PyObject *WebSocket_register_protocol(WebSocketObject *self, PyObject *args)
 {
-printf("x %d\n",self->numprotocols);
-PyObject *func;
+PyObject *handler;
 PyObject *name;
-  if ( PyArg_ParseTuple(args, "OO", &name, &func)) {
+  if ( PyArg_ParseTuple(args, "OO", &name, &handler)) {
 
     size_t nextsize = sizeof(struct libwebsocket_protocols)*(self->numprotocols+2);
     self->protocols = realloc(self->protocols, nextsize);
@@ -264,21 +330,28 @@ PyObject *name;
 
     self->info.protocols = self->protocols;
     
-    PyDict_SetItem(self->dispatch, name, func);
+    printf("3\n");
+    PyDict_SetItem(self->dispatch, name, handler);        // increments key and value references
     self->protocols[self->numprotocols+1] = self->protocols[self->numprotocols];
+    printf("4\n");
     
     Py_ssize_t namelen = PyString_Size(name);
     char *namestr = malloc(namelen+1);
     if(!namestr){
-      Py_RETURN_NONE;
+      return NULL;
     }
-    printf("pystring = %s len = %d\n",PyString_AsString(name),PyString_Size(name));
     strncpy(namestr,PyString_AsString(name), namelen+1);
+   
     
+    init_protocol(&self->protocols[self->numprotocols]);
     self->protocols[self->numprotocols].name                  = namestr;
     self->protocols[self->numprotocols].callback              = WebSocket_dispatch;
     self->protocols[self->numprotocols].per_session_data_size = 0;
     self->numprotocols++;
+
+    for (int i = 0; i < self->numprotocols; i++) {
+      printf("%s --> %u", self->protocols[i].name, self->protocols[i].rx_buffer_size);
+    }
     printf("new protocol --> %s\n", namestr);
   }
   // TODO: Raise ValueError here  
@@ -292,6 +365,7 @@ static void WebSocket_dealloc(WebSocketObject *self)
   }
   free(self->protocols);
   Py_DECREF(self->dispatch);
+  Py_DECREF(self->deque);
   self->ob_type->tp_free((PyObject*)self);
 }
 
@@ -299,7 +373,7 @@ static PyMethodDef WebSocket_methods[] = {
   {"run", (PyCFunction)WebSocket_run, METH_VARARGS,
    "Run websocket server (for n milliseconds)"
   },
-  {"register", (PyCFunction)WebSocket_register_protocol, METH_VARARGS,
+  {"register_protocol", (PyCFunction)WebSocket_register_protocol, METH_VARARGS,
    "bind a protocol name to a callback function"
   },
   {"listen", (PyCFunction)WebSocket_listen, METH_VARARGS,

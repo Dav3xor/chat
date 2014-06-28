@@ -1,21 +1,22 @@
 import pylws
 
-print "1"
 listener = pylws.WebSocket('127.0.0.1', 8000,
                            '/home/dave/blah.cert',
                            '/home/dave/blah.key', 
                            {'/': '/home/dave/chat/server.py'})
 
+class protocol_handler(object):
+  def new_connection(self, ws, fd, protocol):
+    print "(python) new connection!"
+  def closed_connection(self, ws, fd, protocol):
+    print "(python) closed connection"
+  def recieve_data(self, ws, fd, protocol, msg):
+    print "(python) new data -- %s" % msg
+    #ws.write(fd,"hello");
 
-def handler(ws, fd, protocol, msg):
-  ws.write(fd,"hello");
-  #print msg
+handler = protocol_handler()
 
-print "2"
-listener.register('local_echo', handler)
-print "3"
+listener.register_protocol('local_echo', handler)
 listener.listen()
-print "4"
 while 1:
   listener.run(100)
-print "5"
