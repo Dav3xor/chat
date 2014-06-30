@@ -55,20 +55,49 @@ static PyObject * WebSocket_listen (WebSocketObject *self, PyObject *args)
 static PyObject * WebSocket_write (WebSocketObject *self, PyObject *args)
 {
 
-  int fd;
-  char *output;
+  int         fd;
+  PyObject   *msg;
+  char       *msgstr;
+  Py_ssize_t  msglen;
+  PyObject   *output;
+  char       *outputstr;
+  struct      libwebsocket *writelws;
 
-  if (!( PyArg_ParseTuple(args, "is", &fd, &output))) {
+  if (!( PyArg_ParseTuple(args, "iO", &fd, &msg))) {
     return NULL;
   }
-  printf("write: fd=%d, '%s'\n",fd,output);
+  printf("write: fd=%d, '%s'\n",fd,PyString_AsString(msg));
    
   PyObject *key = PyInt_FromLong(fd);                                                   // new reference
   if (key) {
     PyObject *pyconn = PyDict_GetItem(self->connections, key);                            // borrowed reference
-    if (pyconn) {
+    PyObject *queue  = PyDict_GetItem(self->queues, key);
+    if ((pyconn) && (queue) && (msg) && 
+        (PyObject_TypeCheck(msg, &PyString_Type))) {
+
+      // get a pointer to the cstring and it's length
+      PyString_AsStringAndSize(msg,&msgstr,&msglen);
+      output = PyString_FromStringAndSize(NULL,  
+                                          LWS_SEND_BUFFER_PRE_PADDING +
+                                          msglen + 
+                                          LWS_SEND_BUFFER_POST_PADDING);
+      if(output) {
+        outputstr = PyString_AsString(output);
+        memset((void *)outputstr, 0, 
+               LWS_SEND_BUFFER_PRE_PADDING);
+        memcpy((void *)&outputstr[LWS_SEND_BUFFER_PRE_PADDING], 
+               msgstr, msglen);
+        memset((void *)&outputstr[LWS_SEND_BUFFER_PRE_PADDING+msglen], 0, 
+               LWS_SEND_BUFFER_POST_PADDING);
+        PyEval_CallMethod(queue, "append", "O", output);
+        
+        writelws = (struct libwebsocket *)PyCObject_AsVoidPtr(pyconn);
+        libwebsocket_callback_on_writable(self->context,writelws);
+      }
+
+        
       struct libwebsocket *writelws = (struct libwebsocket *)PyCObject_AsVoidPtr(pyconn);
-      printf("writelws = %p", writelws); 
+      printf("writelws = %p\n", writelws); 
       Py_RETURN_NONE;
     } else {
       Py_DECREF(key);
@@ -171,6 +200,40 @@ static int WebSocket_dispatch (struct libwebsocket_context * this,
             }
             break;
         }
+        
+        case LWS_CALLBACK_SERVER_WRITEABLE: {
+            PyObject    *queue;
+            PyObject    *output;
+            Py_ssize_t   queuelen;
+            char        *outputstr;
+            Py_ssize_t   outputlen;
+            
+            int          fd          = libwebsocket_get_socket_fd(wsi);
+            PyObject    *key         = PyInt_FromLong(fd);  // new reference
+
+            if(key) {
+              queue = PyDict_GetItem(self->queues, key);
+              if(queue){
+                queuelen = PySequence_Length(queue);
+                printf("queuelen = %d\n",queuelen);
+                if(queuelen){
+                  output = PyEval_CallMethod(queue, "popleft", NULL);
+                  if ((output) && (PyObject_TypeCheck(output, &PyString_Type))) {
+                    PyString_AsStringAndSize(output,&outputstr,&outputlen);
+                    if ((outputstr)&&(outputlen)) {
+                      libwebsocket_write(wsi, (unsigned char *)outputstr, outputlen, LWS_WRITE_TEXT);
+                    }
+                  }
+                  if(queuelen - 1 > 0) {
+                    libwebsocket_callback_on_writable(self->context,wsi);
+                  } 
+                }
+              }
+              Py_DECREF(key);
+            }
+            break;
+        }
+            
         case LWS_CALLBACK_CLOSED: {
             cur_protocol = libwebsockets_get_protocol (wsi);                              
             PyObject *handler = PyDict_GetItemString(self->dispatch,

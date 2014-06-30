@@ -12,7 +12,7 @@ class protocol_handler(object):
     print "(python) closed connection"
   def recieve_data(self, ws, fd, protocol, msg):
     print "(python) new data -- %s" % msg
-    #ws.write(fd,"hello");
+    ws.write(fd,"hello");
 
 handler = protocol_handler()
 
