@@ -1,5 +1,5 @@
 import pylws
-
+from pprint import pprint
 listener = pylws.WebSocket('127.0.0.1', 8000,
                            '/home/dave/blah.cert',
                            '/home/dave/blah.key', 
@@ -12,7 +12,7 @@ class protocol_handler(object):
     print "(python) closed connection"
   def recieve_data(self, ws, fd, protocol, msg):
     print "(python) new data -- %s" % msg
-    ws.write(fd,"hello");
+    ws.write((fd,),"hello")
 
 handler = protocol_handler()
 
