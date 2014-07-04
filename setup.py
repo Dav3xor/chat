@@ -4,5 +4,6 @@ setup(name="pylws", version="1.0",
                              ["pylibwebsocket.c"],
                              libraries=['websockets'],
                              library_dirs=['/usr/local/lib'],
+                             extra_link_args=['-ggdb'],
                              extra_compile_args=['-std=c99']
                              )])
