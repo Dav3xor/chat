@@ -3,7 +3,7 @@ from ws4py.client.threadedclient import WebSocketClient
 class DummyClient(WebSocketClient):
     def opened(self):
         def data_provider():
-            for i in xrange(1000000000):
+            for i in xrange(100):
                 yield "#"
 
         self.send(data_provider())
@@ -16,11 +16,7 @@ class DummyClient(WebSocketClient):
         print "Closed down", code, reason
 
     def received_message(self, m):
-        print m
-        if len(m) == 10:
-            print "closing"
-            self.close(reason='Bye bye')
-        print "not closing"
+        print "-->" + str(m)
 
 
 def do_test():

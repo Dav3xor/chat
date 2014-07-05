@@ -25,8 +25,8 @@ class protocol_handler(object):
     print "fd="+str(fd)
     print "protocol="+str(protocol)
     """
-    msglen = random.randint(1,100)
-    ws.write((fd,),"*"*msglen)
+    #msglen = random.randint(1,100)
+    ws.write((fd,),"hello")
 
 
 handler = protocol_handler()

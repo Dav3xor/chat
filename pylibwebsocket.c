@@ -198,12 +198,23 @@ static int WebSocket_dispatch (struct libwebsocket_context * this,
               if(queue){
                 queuelen = PySequence_Length(queue);
                 if(queuelen){
-                  output = PyObject_CallMethod(queue, "popleft", "()");
+                  output = PyObject_CallMethod(queue, "popleft", "()");            // new reference
                   if ((output) && (PyObject_TypeCheck(output, &PyString_Type))) {
                     PyString_AsStringAndSize(output,&outputstr,&outputlen);
                     if ((outputstr)&&(outputlen)) {
-                      libwebsocket_write(wsi, (unsigned char *)outputstr, outputlen, LWS_WRITE_TEXT);
+                      char *buffered = malloc(LWS_SEND_BUFFER_PRE_PADDING + 
+                                              outputlen + 
+                                              LWS_SEND_BUFFER_POST_PADDING);
+                      strncpy(&buffered[LWS_SEND_BUFFER_PRE_PADDING],
+                              outputstr,
+                              outputlen+1);
+
+                      libwebsocket_write(wsi, 
+                                         (unsigned char *)&buffered[LWS_SEND_BUFFER_PRE_PADDING], 
+                                         outputlen, LWS_WRITE_TEXT);
+                      free(buffered);
                     }
+                    Py_DECREF(output);
                   }
                   if(queuelen - 1 > 0) {
                     libwebsocket_callback_on_writable(self->context,wsi);
@@ -353,6 +364,7 @@ static int WebSocket_init(WebSocketObject *self,
       self->protocols[0].name                  = "http-only";
       self->protocols[0].callback              = WebSocket_http_callback;
       self->protocols[0].per_session_data_size = 0;
+
       while (PyDict_Next(protocols, &pos, &key, &value)) {
         init_protocol(&self->protocols[self->numprotocols]);
         if(!(PyString_Check(key))) {
