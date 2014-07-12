@@ -29,7 +29,7 @@ function MegaChataTron(hostname)
     while(this.msgs.length) {
       // TODO: stop sending if connection goes down...
       nextmsg = this.msgs.shift();
-      this.connection.send(JSON.parse(nextmsg));
+      this.connection.send(JSON.stringify(nextmsg));
     }
   }
  
@@ -45,15 +45,16 @@ function MegaChataTron(hostname)
     }
   }
       
-    
+  this.onOpen = function () {
+    this.state = this.STATE_CONNECTED;
+    this.emptyQueue();     
+  }
+
+  var obj = this; 
   this.connect = function() {
     this.connection           = new WebSocket(hostname,'chat');
-    this.state                = this.STATE_CONNECTING;
 
-    this.connection.onopen    = function () {
-      this.state = this.STATE_CONNECTED           
-      alert('connected');
-    }
+    this.connection.onopen    = function(){obj.onOpen()};
     this.connection.onerror   = function (error) {
       alert('error: ' + error);
     }
@@ -62,6 +63,7 @@ function MegaChataTron(hostname)
       
       alert('recieved: '+ e.data);
     }
+    this.state                = this.STATE_CONNECTING;
   }
 }
 

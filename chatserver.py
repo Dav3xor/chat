@@ -44,6 +44,7 @@ class chat_handler(object):
       if username not in self.user_to_connections:
         self.user_to_connections[username] = set()
       self.user_to_connections[username].add(fileno)
+      self.broadcast(ws,"{type:'auth', status:'ok'}",[fileno])
     else:
       print ("User Login Failed --> %s" % (username))
 
@@ -84,7 +85,9 @@ class chat_handler(object):
     print "(python) new data -- %s" % msg
 
     msg = json.loads(msg)
-    self.msg_types[msg['type']]['handler'](ws, msg, fileno)
+    print msg
+    print self.msg_types[msg['type']]['handler']
+    self.msg_types[msg['type']]['handler'](ws, msg, fd)
 
 class WSStub(object):
   def write(self,filenos,msg):
@@ -93,7 +96,8 @@ class WSStub(object):
 ws = WSStub()
 handler = chat_handler()
 handler.new_connection(ws,1,"chatzzz")
-handler.authenticate(ws, {'user':'Dav3xor','pass':'password'},1)
+handler.recieve_data(ws,1,'chat', """{"type":"auth","user":"Dav3xor","pass":"password"}""")
+handler.authenticate(ws, {'type': 'auth', 'user':'Dav3xor','pass':'password'},1)
 handler.join(ws,{'channel':'Dav3stown'},1)
 handler.message(ws,{'to':'Dav3stown','msg':'Hello'},1)
 
