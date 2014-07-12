@@ -101,7 +101,11 @@ listener = pylws.WebSocket('127.0.0.1', 8000,
                            '/home/dave/blah.cert',
                            '/home/dave/blah.key', 
                            {'chat': handler},
-                           {'/': '/home/dave/chat/server.py'})
+                           {'/':           '/home/dave/dev/chat/index.html',
+                            '/index.html': '/home/dave/dev/chat/index.html',
+                            '/css/offcanvas.css': '/home/dave/dev/chat/css/offcanvas.css',
+                            '/css/darkstrap.css': '/home/dave/dev/chat/css/darkstrap.css',
+                            '/js/mct.js': '/home/dave/dev/chat/js/mct.js'})
 
 while 1:
   listener.run(100)

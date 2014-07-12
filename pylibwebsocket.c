@@ -297,6 +297,8 @@ static int WebSocket_http_callback(struct libwebsocket_context *context,
                 // see it's source code
                 // http://git.warmcat.com/cgi-bin/cgit/libwebsockets/tree/lib/parsers.c#n1896
                 libwebsockets_serve_http_file(context, wsi, file, mime, NULL);
+            } else {
+              printf("can't find: %s\n", file);
             }
             
             // close connection
