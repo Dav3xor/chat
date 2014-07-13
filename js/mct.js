@@ -55,6 +55,7 @@ function MegaChataTron(hostname)
     this.connection           = new WebSocket(hostname,'chat');
 
     this.connection.onopen    = function(){obj.onOpen()};
+
     this.connection.onerror   = function (error) {
       alert('error: ' + error);
     }

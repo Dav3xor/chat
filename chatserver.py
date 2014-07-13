@@ -23,12 +23,22 @@ class chat_handler(object):
     # { "Dav3stown": set(["Dav3xor", "Bob", "Frank"]) }
     self.channel_to_users     = {}
 
+    # restraints for fields recieved in json
+    # 1. type
+    # 2. maxdigits
+    # 3. check function (or None)
+    type_restraints      = [str, 8, None]
+    channel_restraints   = [str, 24, None]
     self.msg_types = {'auth':{'handler': self.authenticate,
-                              'fields':  ['type', 'user', 'pass']},
+                              'fields':  {'type':    type_restraints,
+                                          'user':    [str, 24, None], 
+                                          'pass':    [str, 16, None]}},
                       'join':{'handler': self.join,
-                              'fields':  ['type', 'channel']},
+                              'fields':  {'type':    type_restraints, 
+                                          'channel': channel_restraints}},
                       'msg': {'handler': self.message,
-                              'fields':  ['to', 'msg']} }
+                              'fields':  {'type':    type_restraints,
+                                          'to':      channel_restraints, 'msg'}} }
 
 
   def authenticate(self, ws, msg, fileno):
@@ -37,13 +47,17 @@ class chat_handler(object):
     # TODO: switch over to storing user crap in db
     if password == self.passwords[username]:
       print ("User Login --> %s" % (username))
+
       if username not in self.users:
         self.users[username] = {'connections':[]}
       self.users[username]['connections'].append(fileno)
+
       self.connection_to_user[fileno] = username
+
       if username not in self.user_to_connections:
         self.user_to_connections[username] = set()
       self.user_to_connections[username].add(fileno)
+
       self.broadcast(ws,"{type:'auth', status:'ok'}",[fileno])
     else:
       print ("User Login Failed --> %s" % (username))
