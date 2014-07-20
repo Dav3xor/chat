@@ -14,6 +14,7 @@ typedef struct {
   /* Type-specific fields go here. */
   struct       lws_context_creation_info info;
   unsigned int numprotocols;
+  bool         gotpythonerror;
   struct       libwebsocket_context      *context;
   struct       libwebsocket_protocols    *protocols;
                PyObject                  *dispatch;
@@ -71,7 +72,10 @@ static PyObject * WebSocket_write (WebSocketObject *self, PyObject *args)
       PyObject *queue  = PyDict_GetItem(self->queues, key);
       if ((pyconn) && (queue) && (msg) && (writelws) &&
           (PyObject_TypeCheck(msg, &PyString_Type))) {
-        PyObject_CallMethod(queue, "append", "(O)", msg);
+        if(!PyObject_CallMethod(queue, "append", "(O)", msg)){
+          self->gotpythonerror = true;
+          return NULL;
+        }
         libwebsocket_callback_on_writable(self->context,writelws);
       }
       Py_DECREF(key);
@@ -89,6 +93,10 @@ static PyObject * WebSocket_run (WebSocketObject *self, PyObject *args)
     int wait_time;
     if ( PyArg_ParseTuple(args, "i", &wait_time)) {
       libwebsocket_service(self->context, wait_time);
+    }
+    if (self->gotpythonerror){
+      self->gotpythonerror=false;
+      return NULL;
     }
   }
  
@@ -131,12 +139,14 @@ static int WebSocket_dispatch (struct libwebsocket_context * this,
 
             if (!connection) {
               printf ("can't allocate new python connection reference\n");
+              self->gotpythonerror = true;
               return -1;
             }
             PyObject *key = PyInt_FromLong(fd);                                 // new reference
 
             if (!key) {
               printf ("cannot allocate python connection key\n");
+              self->gotpythonerror = true;
               return -1;
             }
 
@@ -145,6 +155,7 @@ static int WebSocket_dispatch (struct libwebsocket_context * this,
               newqueue = PyObject_CallFunction(self->deque,"()");
               if(!newqueue) {
                 printf("newqueue fail\n");
+                self->gotpythonerror = true;
                 return -1;
               }
             }
@@ -157,8 +168,11 @@ static int WebSocket_dispatch (struct libwebsocket_context * this,
             PyObject *handler = PyDict_GetItemString(self->dispatch,
                                                      cur_protocol->name); // borrowed reference
             if(handler) {
-              PyObject_CallMethod(handler, "new_connection", "Ois", 
-                                self, fd, cur_protocol->name);
+              if(!PyObject_CallMethod(handler, "new_connection", "Ois", 
+                                self, fd, cur_protocol->name)) {
+                self->gotpythonerror = true;
+                return -1;
+              }
             }            
             Py_DECREF(key);
             Py_DECREF(connection);
@@ -170,6 +184,7 @@ static int WebSocket_dispatch (struct libwebsocket_context * this,
             cur_protocol = libwebsockets_get_protocol (wsi);
             if (!(cur_protocol)) {
               printf ("couldn't get protocol?\n");
+              self->gotpythonerror = true;
               return -1;
             } 
 
@@ -177,8 +192,11 @@ static int WebSocket_dispatch (struct libwebsocket_context * this,
                                                      cur_protocol->name); // borrowed reference
             
             if(handler) {
-              PyObject_CallMethod(handler, "recieve_data", "Oiss",  
-                                self, fd, cur_protocol->name, in);
+              if(!PyObject_CallMethod(handler, "recieve_data", "Oiss",  
+                                self, fd, cur_protocol->name, in)) {
+                self->gotpythonerror = true;
+                return -1;
+              }
             }
             break;
         }
@@ -198,10 +216,16 @@ static int WebSocket_dispatch (struct libwebsocket_context * this,
               if(queue){
                 queuelen = PySequence_Length(queue);
                 if(queuelen){
-                  output = PyObject_CallMethod(queue, "popleft", "()");            // new reference
-                  if ((output) && (PyObject_TypeCheck(output, &PyString_Type))) {
+                  output = PyObject_CallMethod(queue, "popleft", "()");  // new reference
+                  if(!output) {
+                    self->gotpythonerror = true;
+                    return -1;
+                  } else if (PyObject_TypeCheck(output, &PyString_Type)) {
                     PyString_AsStringAndSize(output,&outputstr,&outputlen);
-                    if ((outputstr)&&(outputlen)) {
+                    if (!outputstr) {
+                      self->gotpythonerror = true;
+                      return -1;
+                    } else if (outputlen) {
                       char *buffered = malloc(LWS_SEND_BUFFER_PRE_PADDING + 
                                               outputlen + 
                                               LWS_SEND_BUFFER_POST_PADDING);
@@ -237,8 +261,11 @@ static int WebSocket_dispatch (struct libwebsocket_context * this,
             int fd = libwebsocket_get_socket_fd(wsi);
             PyObject *key = PyInt_FromLong(fd);                            // new reference
             if ((handler) && (cur_protocol->name)) {
-              PyObject_CallMethod(handler, "closed_connection", "Ois", 
-                                self, fd, cur_protocol->name);
+              if (!PyObject_CallMethod(handler, "closed_connection", "Ois", 
+                                self, fd, cur_protocol->name)) {
+                self->gotpythonerror = true;
+                return -1;
+              }
             }            
             PyDict_DelItem(self->connections, key);
             PyDict_DelItem(self->queues, key);
@@ -264,43 +291,48 @@ static int WebSocket_http_callback(struct libwebsocket_context *context,
             
         // http://git.warmcat.com/cgi-bin/cgit/libwebsockets/tree/lib/libwebsockets.h#n281
         case LWS_CALLBACK_HTTP: {
+            char *file;
             char *requested_uri = (char *) in;
             printf("requested URI: %s\n", requested_uri);
            
             PyObject *pyfile = PyDict_GetItemString(self->urls, 
                                                     requested_uri); // borrowed reference
-            if(pyfile && PyObject_TypeCheck(pyfile, &PyString_Type)) {
-                char *file      = PyString_AsString(pyfile);   
-                printf("on disk: %s\n", file);
-                char *extension = strrchr(requested_uri, '.');
-                char *mime;
-                
-                // choose mime type based on the file extension
-                if (extension == NULL) {
-                    mime = "text/plain";
-                } else if (strcmp(extension, ".png") == 0) {
-                    mime = "image/png";
-                } else if (strcmp(extension, ".jpg") == 0) {
-                    mime = "image/jpg";
-                } else if (strcmp(extension, ".gif") == 0) {
-                    mime = "image/gif";
-                } else if (strcmp(extension, ".html") == 0) {
-                    mime = "text/html";
-                } else if (strcmp(extension, ".css") == 0) {
-                    mime = "text/css";
-                } else {
-                    mime = "text/plain";
-                }
-                
-                // by default non existing resources return code 400
-                // for more information how this function handles headers
-                // see it's source code
-                // http://git.warmcat.com/cgi-bin/cgit/libwebsockets/tree/lib/parsers.c#n1896
-                libwebsockets_serve_http_file(context, wsi, file, mime, NULL);
+            if(!(pyfile)) {
+              printf("http file off whitelist: %s\n", requested_uri);
+              return -1;
+            } else if(!PyObject_TypeCheck(pyfile, &PyString_Type)) {
+              printf ("html url not string\n");
+              self->gotpythonerror = true;
+              return -1;
             } else {
-              printf("can't find: %s\n", file);
-            }
-            
+              file      = PyString_AsString(pyfile);   
+              printf("on disk: %s\n", file);
+              char *extension = strrchr(requested_uri, '.');
+              char *mime;
+              
+              // choose mime type based on the file extension
+              if (extension == NULL) {
+                  mime = "text/plain";
+              } else if (strcmp(extension, ".png") == 0) {
+                  mime = "image/png";
+              } else if (strcmp(extension, ".jpg") == 0) {
+                  mime = "image/jpg";
+              } else if (strcmp(extension, ".gif") == 0) {
+                  mime = "image/gif";
+              } else if (strcmp(extension, ".html") == 0) {
+                  mime = "text/html";
+              } else if (strcmp(extension, ".css") == 0) {
+                  mime = "text/css";
+              } else {
+                  mime = "text/plain";
+              }
+              
+              // by default non existing resources return code 400
+              // for more information how this function handles headers
+              // see it's source code
+              // http://git.warmcat.com/cgi-bin/cgit/libwebsockets/tree/lib/parsers.c#n1896
+              libwebsockets_serve_http_file(context, wsi, file, mime, NULL);
+            }            
             // close connection
             return_value = -1;
             break;
@@ -340,6 +372,7 @@ static int WebSocket_init(WebSocketObject *self,
     }
     Py_DECREF(collections);
   }
+  self->gotpythonerror                = false;
   self->dispatch                      = PyDict_New();           // new reference
   self->connections                   = PyDict_New();           // new reference;
   self->queues                        = PyDict_New();           // new reference;

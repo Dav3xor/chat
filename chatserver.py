@@ -2,6 +2,7 @@ import pylws
 import random
 import itertools
 import json
+
 from pprint import pprint
 
 class chat_handler(object):
@@ -29,6 +30,7 @@ class chat_handler(object):
     # 3. check function (or None)
     type_restraints      = [str, 8, None]
     channel_restraints   = [str, 24, None]
+    message_restraints   = [str, 400, None]
     self.msg_types = {'auth':{'handler': self.authenticate,
                               'fields':  {'type':    type_restraints,
                                           'user':    [str, 24, None], 
@@ -38,14 +40,15 @@ class chat_handler(object):
                                           'channel': channel_restraints}},
                       'msg': {'handler': self.message,
                               'fields':  {'type':    type_restraints,
-                                          'to':      channel_restraints, 'msg'}} }
+                                          'to':      channel_restraints, 
+                                          'msg':     message_restraints} } }
 
 
   def authenticate(self, ws, msg, fileno):
     username = msg['user']
     password = msg['pass']
     # TODO: switch over to storing user crap in db
-    if password == self.passwords[username]:
+    if password == self.passwords[username]: 
       print ("User Login --> %s" % (username))
 
       if username not in self.users:
@@ -96,6 +99,7 @@ class chat_handler(object):
   def closed_connection(self, ws, fd, protocol):
     print "(python) closed connection"
   def recieve_data(self, ws, fd, protocol, msg):
+    x=5/0
     print "(python) new data -- %s" % msg
 
     msg = json.loads(msg)
@@ -109,21 +113,27 @@ class WSStub(object):
 
 ws = WSStub()
 handler = chat_handler()
-handler.new_connection(ws,1,"chatzzz")
-handler.recieve_data(ws,1,'chat', """{"type":"auth","user":"Dav3xor","pass":"password"}""")
+#handler.new_connection(ws,1,"chatzzz")
+#handler.recieve_data(ws,1,'chat', """{"type":"auth","user":"Dav3xor","pass":"password"}""")
 handler.authenticate(ws, {'type': 'auth', 'user':'Dav3xor','pass':'password'},1)
 handler.join(ws,{'channel':'Dav3stown'},1)
 handler.message(ws,{'to':'Dav3stown','msg':'Hello'},1)
+
+
+urls = {'/':                  '/home/dave/dev/chat/index.html',
+        '/index.html':        '/home/dave/dev/chat/index.html',
+        '/css/offcanvas.css': '/home/dave/dev/chat/css/offcanvas.css',
+        '/css/darkstrap.css': '/home/dave/dev/chat/css/darkstrap.css',
+        '/css/chat.css':      '/home/dave/dev/chat/css/chat.css',
+        '/js/mct.js':         '/home/dave/dev/chat/js/mct.js'}
+
+print "-------" + urls['/']
 
 listener = pylws.WebSocket('127.0.0.1', 8000,
                            '/home/dave/blah.cert',
                            '/home/dave/blah.key', 
                            {'chat': handler},
-                           {'/':           '/home/dave/dev/chat/index.html',
-                            '/index.html': '/home/dave/dev/chat/index.html',
-                            '/css/offcanvas.css': '/home/dave/dev/chat/css/offcanvas.css',
-                            '/css/darkstrap.css': '/home/dave/dev/chat/css/darkstrap.css',
-                            '/js/mct.js': '/home/dave/dev/chat/js/mct.js'})
+                           urls)
 
 while 1:
   listener.run(100)

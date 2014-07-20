@@ -1,0 +1,4 @@
+html, body {height:100%; margin:0; overflow:hidden;}
+header, footer {display:block; background-color:black; height:10%;}
+section {height:80%; background-color:lightblue; display:block; overflow:auto;}
+section .push {height:4000px;}

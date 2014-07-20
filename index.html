@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css">
     <link rel="stylesheet" href="/css/offcanvas.css">
     <link rel="stylesheet" href="/css/darkstrap.css">
+    <link rel="stylesheet" href="/css/chat.css">
     
 
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
@@ -25,36 +26,13 @@
 
 
   <body>
-    <div class="navbar navbar-fixed-top navbar-inverse" role="navigation">
-      <div class="container">
-        <div class="navbar-header">
-          <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
-            <span class="sr-only">Toggle navigation</span>
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
-          </button>
-          <a class="navbar-brand" href="#">Project name</a>
-        </div>
-        <div class="collapse navbar-collapse">
-          <ul class="nav navbar-nav">
-            <li class="active"><a href="#">Home</a></li>
-            <li><a href="#about">About</a></li>
-            <li><a href="#contact">Contact</a></li>
-          </ul>
-        </div><!-- /.nav-collapse -->
-      </div><!-- /.container -->
-    </div><!-- /.navbar -->
-    
-    <div class="container">
-      <div class="row row-offcanvas row-offcanvas-right row-inverse">
-        <div class="well col-xl-12">
-        <table id="chattable" style="width:100%" class="table table-striped">
-           <tr><td><strong>Dav3xor</strong>:</td><td>hello there, do you wish to purchase some lovely Cutco knives, or perhaps a Kerby vacuum?</td></tr>
-           <tr><td><strong>Bubba</strong>:</td><td>yes, greetings</td></tr>
-        </table>
-      </div>
-    </div>
+    <header>header</header>
+    <section>
+        <div class="push">push</div>
+    </section>
+    <footer>footer</footer>
+
+
     <script src="/js/mct.js"></script>
     <script>
       var connection = new MegaChataTron('ws://localhost:8000/');
@@ -62,7 +40,8 @@
       connection.handleMessage = function(msg) {
         // TODO: handle channel
         // TODO: markdown
-        $('#chattable').append("<tr><td><strong>"+msg.from+"</strong></td><td>"+msg.msg+"</td></tr>");
+        $('#chattable').append("<tr><td><strong>"+msg.from+"</strong></td>"+
+                               "<td>"+msg.msg+"</td></tr>");
       }
       connection.login('Dav3xor','password');
     </script>
