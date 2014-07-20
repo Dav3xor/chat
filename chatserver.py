@@ -99,7 +99,6 @@ class chat_handler(object):
   def closed_connection(self, ws, fd, protocol):
     print "(python) closed connection"
   def recieve_data(self, ws, fd, protocol, msg):
-    x=5/0
     print "(python) new data -- %s" % msg
 
     msg = json.loads(msg)
@@ -113,8 +112,8 @@ class WSStub(object):
 
 ws = WSStub()
 handler = chat_handler()
-#handler.new_connection(ws,1,"chatzzz")
-#handler.recieve_data(ws,1,'chat', """{"type":"auth","user":"Dav3xor","pass":"password"}""")
+handler.new_connection(ws,1,"chatzzz")
+handler.recieve_data(ws,1,'chat', """{"type":"auth","user":"Dav3xor","pass":"password"}""")
 handler.authenticate(ws, {'type': 'auth', 'user':'Dav3xor','pass':'password'},1)
 handler.join(ws,{'channel':'Dav3stown'},1)
 handler.message(ws,{'to':'Dav3stown','msg':'Hello'},1)

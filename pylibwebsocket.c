@@ -311,7 +311,9 @@ static int WebSocket_http_callback(struct libwebsocket_context *context,
               char *mime;
               
               // choose mime type based on the file extension
-              if (extension == NULL) {
+              if (strncmp(requested_uri, "/",2)==0) {
+                  mime = "text/html";
+              } else if (extension == NULL) {
                   mime = "text/plain";
               } else if (strcmp(extension, ".png") == 0) {
                   mime = "image/png";
