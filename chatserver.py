@@ -32,14 +32,14 @@ class chat_handler(object):
     channel_restraints   = [str, 24, None]
     message_restraints   = [str, 400, None]
     self.msg_types = {'auth':{'handler': self.authenticate,
-                              'fields':  {'type':    type_restraints,
+                              'fields':  {'mtype':    type_restraints,
                                           'user':    [str, 24, None], 
                                           'pass':    [str, 16, None]}},
                       'join':{'handler': self.join,
-                              'fields':  {'type':    type_restraints, 
+                              'fields':  {'mtype':    type_restraints, 
                                           'channel': channel_restraints}},
                       'msg': {'handler': self.message,
-                              'fields':  {'type':    type_restraints,
+                              'fields':  {'mtype':    type_restraints,
                                           'to':      channel_restraints, 
                                           'msg':     message_restraints} } }
 
@@ -61,7 +61,7 @@ class chat_handler(object):
         self.user_to_connections[username] = set()
       self.user_to_connections[username].add(fileno)
 
-      self.broadcast(ws,"{type:'auth', status:'ok'}",[fileno])
+      self.broadcast(ws,"{mtype:'auth', status:'ok'}",[fileno])
     else:
       print ("User Login Failed --> %s" % (username))
 
@@ -84,13 +84,14 @@ class chat_handler(object):
     channel        = msg['to']
     msg['from']    = username
     users          = self.channel_to_users[channel]
-    filenos        = itertools.chain(*[self.user_to_connections[i] for i in users])
+    filenos        = list(set(itertools.chain(*[self.user_to_connections[i] for i in users])))
 
     self.broadcast(ws, msg, filenos)
 
 
   def broadcast(self, ws, msg, filenos):
     msg = json.dumps(msg)
+    print "-->" + str(filenos)
     ws.write(filenos, msg)
 
 
@@ -102,9 +103,7 @@ class chat_handler(object):
     print "(python) new data -- %s" % msg
 
     msg = json.loads(msg)
-    print msg
-    print self.msg_types[msg['type']]['handler']
-    self.msg_types[msg['type']]['handler'](ws, msg, fd)
+    self.msg_types[msg['mtype']]['handler'](ws, msg, fd)
 
 class WSStub(object):
   def write(self,filenos,msg):
@@ -112,12 +111,14 @@ class WSStub(object):
 
 ws = WSStub()
 handler = chat_handler()
+
+"""
 handler.new_connection(ws,1,"chatzzz")
-handler.recieve_data(ws,1,'chat', """{"type":"auth","user":"Dav3xor","pass":"password"}""")
-handler.authenticate(ws, {'type': 'auth', 'user':'Dav3xor','pass':'password'},1)
+handler.recieve_data(ws,1,'chat', '{"mtype":"auth","user":"Dav3xor","pass":"password"}')
+handler.authenticate(ws, {'mtype': 'auth', 'user':'Dav3xor','pass':'password'},1)
 handler.join(ws,{'channel':'Dav3stown'},1)
 handler.message(ws,{'to':'Dav3stown','msg':'Hello'},1)
-
+"""
 
 urls = {'/':                  '/home/dave/dev/chat/index.html',
         '/index.html':        '/home/dave/dev/chat/index.html',

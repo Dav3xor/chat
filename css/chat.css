@@ -1,4 +1,5 @@
 html, body {height:100%; margin:0; overflow:hidden;}
-header, footer {display:block; background-color:black; height:10%;}
-section {height:80%; background-color:black; display:block; overflow:auto;}
+header {display:block; background-color:green; height:2px;}
+footer {display:block; background-color:blue; height:0px;}
+section { background-color:red; display:block; overflow:auto;}
 section .push {height:4000px;}

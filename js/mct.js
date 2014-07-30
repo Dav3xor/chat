@@ -18,30 +18,45 @@ function MegaChataTron(hostname)
     if(this.state === this.STATE_DISCONNECTED){
       this.connect();
     }
-    var msg = {'type': 'auth', 
+    var msg = {'mtype': 'auth', 
                'user': username, 
                'pass': password};
-    this.sendMessage(msg);
+    this.send(msg);
   }
-
+  this.msg         = function(text, to) {
+    var msg = {'mtype': 'msg',
+               'to':   to,
+               'msg':  text}
+    this.send(msg);
+  }
+  
+  this.join        = function(channel) {
+    var msg = {'mtype':     'join',
+               'channel':   channel}
+    this.send(msg);
+  }
+    
   this.emptyQueue  = function() {
     var nextmsg;
     while(this.msgs.length) {
       // TODO: stop sending if connection goes down...
-      nextmsg = this.msgs.shift();
+      nextmsg = this.msgs.pop();
+      alert("--> "+JSON.stringify(nextmsg));
       this.connection.send(JSON.stringify(nextmsg));
     }
   }
  
-  this.sendMessage = function(msg) {
+  this.send = function(msg) {
     if((this.state === this.STATE_CONNECTED)||
        (this.state === this.STATE_AUTHENTICATED)) {
       if(this.msgs.length > 0) {
         this.emptyQueue();
       }
-      this.connection.send(JSON.parse(msg));
+      //alert(JSON.stringify(msg));
+      this.connection.send(JSON.stringify(msg));
     } else {
       this.msgs.unshift(msg);
+      //alert(JSON.stringify(this.msgs));
     }
   }
       
@@ -61,8 +76,9 @@ function MegaChataTron(hostname)
     }
     this.connection.onmessage = function (e) {
       var msg = JSON.parse(e.data);
-      
-      alert('recieved: '+ e.data);
+      alert(JSON.stringify(msg));
+      obj.handleMessage(msg); 
+      //alert('recieved: '+ e.data);
     }
     this.state                = this.STATE_CONNECTING;
   }

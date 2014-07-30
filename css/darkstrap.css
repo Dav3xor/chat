@@ -22,6 +22,7 @@ a:hover {
 
 textarea,
 input[type="text"],
+input[type="textarea"],
 input[type="password"],
 input[type="datetime"],
 input[type="datetime-local"],
