@@ -7,11 +7,8 @@ from pprint import pprint
 
 class chat_handler(object):
   def __init__(self):
-    self.users                = {}
-    self.channels             = {}
-    self.connections          = {}
-   
-    self.passwords            = {'Dav3xor':'password'} 
+    self.passwords            = {'Dav3xor':'password', 'User':'x'} 
+
     # { 1: "Dav3xor", 2: "Frank", 3: "Bob", 4: "Bob" ... }
     self.connection_to_user  = {}
 
@@ -47,14 +44,28 @@ class chat_handler(object):
   def authenticate(self, ws, msg, fileno):
     username = msg['user']
     password = msg['pass']
+   
+
     # TODO: switch over to storing user crap in db
-    if password == self.passwords[username]: 
-      print ("User Login --> %s" % (username))
+    if (username in self.passwords) and (password == self.passwords[username]): 
 
-      if username not in self.users:
-        self.users[username] = {'connections':[]}
-      self.users[username]['connections'].append(fileno)
-
+      if fileno in self.connection_to_user:
+        # we must be changing users (or have a stale fileno) 
+        olduser = self.connection_to_user[fileno]
+        self.user_to_connections[olduser].remove(fileno)
+        if len(self.user_to_connections[olduser]) == 0:
+          del(self.user_to_connections[olduser])
+          # if there are no more live connections for the current user
+          # drop him/her from user_to_channels as well...
+          dropchannels = []
+          if olduser in self.user_to_channels:
+            for channel in self.user_to_channels[olduser]:
+              self.channel_to_users[channel].remove(olduser)
+              if len(self.channel_to_users[channel]) == 0:
+                dropchannels.append(channel)
+            for channel in dropchannels:
+              del(self.channel_to_users[channel])  
+            del(self.user_to_channels[olduser])
       self.connection_to_user[fileno] = username
 
       if username not in self.user_to_connections:
@@ -62,8 +73,9 @@ class chat_handler(object):
       self.user_to_connections[username].add(fileno)
 
       self.broadcast(ws,"{mtype:'auth', status:'ok'}",[fileno])
+      return True
     else:
-      print ("User Login Failed --> %s" % (username))
+      return False
 
   def join(self, ws, msg, fileno):
     username     = self.connection_to_user[fileno]
@@ -91,8 +103,7 @@ class chat_handler(object):
 
   def broadcast(self, ws, msg, filenos):
     msg = json.dumps(msg)
-    print "-->" + str(filenos)
-    ws.write(filenos, msg)
+    return ws.write(filenos, msg)
 
 
   def new_connection(self, ws, fd, protocol):
@@ -107,7 +118,7 @@ class chat_handler(object):
 
 class WSStub(object):
   def write(self,filenos,msg):
-    print msg
+    print str(filenos) + ' - ' + msg
 
 ws = WSStub()
 handler = chat_handler()
@@ -120,21 +131,21 @@ handler.join(ws,{'channel':'Dav3stown'},1)
 handler.message(ws,{'to':'Dav3stown','msg':'Hello'},1)
 """
 
-urls = {'/':                  '/home/dave/dev/chat/index.html',
-        '/index.html':        '/home/dave/dev/chat/index.html',
-        '/css/offcanvas.css': '/home/dave/dev/chat/css/offcanvas.css',
-        '/css/darkstrap.css': '/home/dave/dev/chat/css/darkstrap.css',
-        '/css/chat.css':      '/home/dave/dev/chat/css/chat.css',
-        '/js/mct.js':         '/home/dave/dev/chat/js/mct.js'}
 
-print "-------" + urls['/']
+if __name__ == "__main__":
+  urls = {'/':                  '/home/dave/dev/chat/index.html',
+          '/index.html':        '/home/dave/dev/chat/index.html',
+          '/css/offcanvas.css': '/home/dave/dev/chat/css/offcanvas.css',
+          '/css/darkstrap.css': '/home/dave/dev/chat/css/darkstrap.css',
+          '/css/chat.css':      '/home/dave/dev/chat/css/chat.css',
+          '/js/mct.js':         '/home/dave/dev/chat/js/mct.js'}
 
-listener = pylws.WebSocket('127.0.0.1', 8000,
-                           '/home/dave/blah.cert',
-                           '/home/dave/blah.key', 
-                           {'chat': handler},
-                           urls)
+  listener = pylws.WebSocket('127.0.0.1', 8000,
+                             '/home/dave/blah.cert',
+                             '/home/dave/blah.key', 
+                             {'chat': handler},
+                             urls)
 
-while 1:
-  listener.run(100)
+  while 1:
+    listener.run(100)
 
