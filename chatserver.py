@@ -78,6 +78,8 @@ class chat_handler(object):
       return False
 
   def join(self, ws, msg, fileno):
+    if fileno not in self.connection_to_user:
+      return False
     username     = self.connection_to_user[fileno]
     channel      = msg['channel']
 
@@ -88,8 +90,7 @@ class chat_handler(object):
     if channel not in self.channel_to_users:
       self.channel_to_users[channel] = set()
     self.channel_to_users[channel].add(username)
-    
-    print ("Join Channel --> %s to %s " % (username,channel))
+    return True 
     
   def message(self, ws, msg, fileno):
     username       = self.connection_to_user[fileno]
