@@ -40,6 +40,26 @@ class chat_handler(object):
                                           'to':      channel_restraints, 
                                           'msg':     message_restraints} } }
 
+  def drop_fileno(self, fileno):
+    if fileno in self.connection_to_user:
+      # we must be changing users (or have a stale fileno) 
+      olduser = self.connection_to_user[fileno]
+      self.user_to_connections[olduser].remove(fileno)
+      if len(self.user_to_connections[olduser]) == 0:
+        del(self.user_to_connections[olduser])
+        # if there are no more live connections for the current user
+        # drop him/her from user_to_channels as well...
+        dropchannels = []
+        if olduser in self.user_to_channels:
+          for channel in self.user_to_channels[olduser]:
+            self.channel_to_users[channel].remove(olduser)
+            if len(self.channel_to_users[channel]) == 0:
+              dropchannels.append(channel)
+          for channel in dropchannels:
+            del(self.channel_to_users[channel])  
+          del(self.user_to_channels[olduser])
+
+
 
   def authenticate(self, ws, msg, fileno):
     username = msg['user']
@@ -48,24 +68,10 @@ class chat_handler(object):
 
     # TODO: switch over to storing user crap in db
     if (username in self.passwords) and (password == self.passwords[username]): 
+      
+      # log out existing authenticated user, if existing...
+      self. drop_fileno(fileno)
 
-      if fileno in self.connection_to_user:
-        # we must be changing users (or have a stale fileno) 
-        olduser = self.connection_to_user[fileno]
-        self.user_to_connections[olduser].remove(fileno)
-        if len(self.user_to_connections[olduser]) == 0:
-          del(self.user_to_connections[olduser])
-          # if there are no more live connections for the current user
-          # drop him/her from user_to_channels as well...
-          dropchannels = []
-          if olduser in self.user_to_channels:
-            for channel in self.user_to_channels[olduser]:
-              self.channel_to_users[channel].remove(olduser)
-              if len(self.channel_to_users[channel]) == 0:
-                dropchannels.append(channel)
-            for channel in dropchannels:
-              del(self.channel_to_users[channel])  
-            del(self.user_to_channels[olduser])
       self.connection_to_user[fileno] = username
 
       if username not in self.user_to_connections:
@@ -126,23 +132,10 @@ class chat_handler(object):
     msg = json.loads(msg)
     self.msg_types[msg['mtype']]['handler'](ws, msg, fd)
 
-class WSStub(object):
-  def write(self,filenos,msg):
-    print str(filenos) + ' - ' + msg
-
-ws = WSStub()
-handler = chat_handler()
-
-"""
-handler.new_connection(ws,1,"chatzzz")
-handler.recieve_data(ws,1,'chat', '{"mtype":"auth","user":"Dav3xor","pass":"password"}')
-handler.authenticate(ws, {'mtype': 'auth', 'user':'Dav3xor','pass':'password'},1)
-handler.join(ws,{'channel':'Dav3stown'},1)
-handler.message(ws,{'to':'Dav3stown','msg':'Hello'},1)
-"""
 
 
 if __name__ == "__main__":
+  handler = chat_handler()
   urls = {'/':                  '/home/dave/dev/chat/index.html',
           '/index.html':        '/home/dave/dev/chat/index.html',
           '/css/offcanvas.css': '/home/dave/dev/chat/css/offcanvas.css',
