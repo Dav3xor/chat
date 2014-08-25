@@ -93,14 +93,23 @@ class chat_handler(object):
     return True 
     
   def message(self, ws, msg, fileno):
+    if fileno not in self.connection_to_user:
+      return False
     username       = self.connection_to_user[fileno]
+
     channel        = msg['to']
-    msg['from']    = username
+    if channel not in self.channel_to_users:
+      return False
+
     users          = self.channel_to_users[channel]
+    if username not in users:
+      return False
+
+    msg['from']    = username
     filenos        = list(set(itertools.chain(*[self.user_to_connections[i] for i in users])))
 
     self.broadcast(ws, msg, filenos)
-
+    return True
 
   def broadcast(self, ws, msg, filenos):
     msg = json.dumps(msg)

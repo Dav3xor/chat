@@ -2,7 +2,10 @@ import chatserver
 import unittest
 
 class WSStub(object):
+  def __init__(self):
+    self.history = []
   def write(self,filenos,msg):
+    self.history = [filenos, msg] 
     return str(filenos) + ' - ' + msg
 
 class TestInit(unittest.TestCase):
@@ -12,6 +15,7 @@ class TestInit(unittest.TestCase):
     self.assertEqual(handler.user_to_connections,{})
     self.assertEqual(handler.user_to_channels,{})
     self.assertEqual(handler.channel_to_users,{})
+
 class TestAuthenticate(unittest.TestCase):
   def test_authenticate(self):
     ws = WSStub()
@@ -121,6 +125,86 @@ class TestJoin(unittest.TestCase):
     self.assertEqual(handler.user_to_channels,{'Dav3xor': set(['channel2']), 
                                                'User': set(['channel1', 'channel2'])})
     self.assertEqual(handler.channel_to_users,{'channel2': set(['User', 'Dav3xor']), 'channel1': set(['User'])})
+
+class TestMessage(unittest.TestCase):
+  def testmessage(self):
+    ws = WSStub()
+    handler = chatserver.chat_handler()
+   
+    # try to send a message with no user or fileno.. 
+    self.assertEqual(handler.message(ws, {'mtype': 'msg', 'to': 'Dav3stown', 'msg':'Hello World'},1), 
+                     False)
+
+    # log in a user... 
+    self.assertEqual(handler.authenticate(ws, {'mtype': 'auth', 
+                                               'user':'User',
+                                               'pass':'x'},1),
+                     True)
+
+    # try to send a message to a channel the user hasn't joined
+    self.assertEqual(handler.message(ws, {'mtype': 'msg', 'to': 'Dav3stown', 'msg':'Hello World'},1), 
+                     False)
+
+    # join user to a channel
+    self.assertEqual(handler.join(ws, {'mtype': 'join', 
+                                       'channel': 'channel1'}, 
+                                  1), 
+                     True)
+    self.assertEqual(handler.connection_to_user,{1: 'User'})
+    self.assertEqual(handler.user_to_connections,{'User': set([1])})
+    self.assertEqual(handler.user_to_channels,{'User': set(['channel1'])})
+    self.assertEqual(handler.channel_to_users,{'channel1': set(['User'])})
+    
+    # actually send a message to a channel the user is joined to...
+    self.assertEqual(handler.message(ws, {'mtype': 'msg', 
+                                          'to': 'channel1', 
+                                          'msg':'Hello World'},
+                                     1), 
+                     True)
+    self.assertEqual(ws.history, [[1],
+                                  '{"mtype": "msg", ' +
+                                  '"to": "channel1", ' +
+                                  '"from": "User", ' +
+                                  '"msg": "Hello World"}'])
+
+    # add a second user 
+    self.assertEqual(handler.authenticate(ws, {'mtype': 'auth', 
+                                               'user':'Dav3xor',
+                                               'pass':'password'},2),
+                     True)
+
+    # send a message to the channel before the second user joins
+    self.assertEqual(handler.message(ws, {'mtype': 'msg', 
+                                          'to': 'channel1', 
+                                          'msg':'Hello World2'},1), 
+                     True)
+    self.assertEqual(ws.history, [[1],
+                                  '{"mtype": "msg", ' +
+                                  '"to": "channel1", ' +
+                                  '"from": "User", ' +
+                                  '"msg": "Hello World2"}'])
+
+
+
+
+    # send a message to the channel after the second user joins
+    self.assertEqual(handler.join(ws, {'mtype': 'join', 
+                                       'channel': 'channel1'}, 
+                                  2), 
+                     True)
+    self.assertEqual(handler.message(ws, {'mtype': 'msg', 
+                                          'to': 'channel1', 
+                                          'msg':'Hello World3'},
+                                     1), 
+                     True)
+    self.assertEqual(ws.history, [[1,2],
+                                  '{"mtype": "msg", ' +
+                                  '"to": "channel1", ' +
+                                  '"from": "User", ' +
+                                  '"msg": "Hello World3"}'])
+
+    
+
 class TestBroadcast(unittest.TestCase):
   def test_broadcast(self):
     ws = WSStub()
