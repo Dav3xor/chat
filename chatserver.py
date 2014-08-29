@@ -1,4 +1,5 @@
 import pylws
+import chatredis
 import random
 import itertools
 import json

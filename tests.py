@@ -1,4 +1,5 @@
 import chatserver
+import chatredis
 import unittest
 
 class WSStub(object):
@@ -213,3 +214,18 @@ class TestBroadcast(unittest.TestCase):
                      '[1, 2] - "\\"test\\""') 
 
     self.assertRaises(TypeError, handler.broadcast, ws, set('test'), [1,2])
+
+
+
+
+
+
+
+# start of chatredis.py tests...
+
+class TestRedisInit(unittest.TestCase):
+  def test_simple_init(self):
+    r = chatredis.RedisServer()
+    self.assertEqual(str(r.redis),
+                     'StrictRedis<ConnectionPool<Connection<host=localhost,port=6379,db=0>>>')
+    self.assertEqual(r.keystart, 'chat')
