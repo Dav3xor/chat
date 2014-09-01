@@ -1,6 +1,7 @@
 import chatserver
 import chatredis
 import unittest
+import json
 
 class WSStub(object):
   def __init__(self):
@@ -224,8 +225,52 @@ class TestBroadcast(unittest.TestCase):
 # start of chatredis.py tests...
 
 class TestRedisInit(unittest.TestCase):
-  def test_simple_init(self):
+  def test_init(self):
     r = chatredis.RedisServer()
     self.assertEqual(str(r.redis),
-                     'StrictRedis<ConnectionPool<Connection<host=localhost,port=6379,db=0>>>')
+                     'StrictRedis<ConnectionPool<Connection' +
+                     '<host=localhost,port=6379,db=0>>>')
     self.assertEqual(r.keystart, 'chat')
+   
+    # make sure named arguments work...
+    r = chatredis.RedisServer(host='127.0.0.1')
+    self.assertEqual(str(r.redis),
+                     'StrictRedis<ConnectionPool<Connection'+
+                     '<host=127.0.0.1,port=6379,db=0>>>')
+    
+    r = chatredis.RedisServer(port=6380)
+    self.assertEqual(str(r.redis),
+                     'StrictRedis<ConnectionPool<Connection'+
+                     '<host=localhost,port=6380,db=0>>>')
+
+  def test_authenticate(self): 
+    r = chatredis.RedisServer()
+    username='username!#$!@%!<S-F1>!@'
+    password='fasdjl;fjl234j59[p136yQ#^$AWGVHawe90vgy 3904wguifhj'
+    r.redis.set(r.make_key('user',username),
+                json.dumps({'pwhash': chatredis.pwd_context.encrypt(password)}))
+   
+    # user not in database:
+    self.assertEqual(r.authenticate('fake',password),
+                     False)
+ 
+    # success!  matching user and password, returns the user's dict...
+    self.assertEqual(type(r.authenticate(username,password)),
+                     dict)
+   
+    # failure, return False 
+    self.assertEqual(r.authenticate(username,'safasf'),
+                     False)
+   
+    # messed up key (not json) 
+    r.redis.set(r.make_key('user',username),
+                'hello')
+    self.assertEqual(r.authenticate(username,password),
+                     False)
+
+
+    # messed up user dict (missing hash)
+    r.redis.set(r.make_key('user',username),
+                json.dumps({}))
+    self.assertEqual(r.authenticate(username,password),
+                     False)

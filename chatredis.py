@@ -1,4 +1,4 @@
-import redis
+import redis, json
 from passlib.apps import custom_app_context as pwd_context
 
 
@@ -11,7 +11,7 @@ class RedisServer(object):
     return self.keystart+'-'+keytype+'-'+key
 
   def authenticate(self, username, password):
-    user_key = self.make_key(user,username)
+    user_key = self.make_key('user',username)
    
     json_user = self.redis.get(user_key)
     if not json_user:
@@ -19,7 +19,10 @@ class RedisServer(object):
 
     try:
       user = json.loads(json_user)
-    except TypeError:
+    except ValueError,TypeError:
+      return False
+
+    if 'pwhash' not in user:
       return False
 
     if pwd_context.verify(password, user['pwhash']):
@@ -31,4 +34,6 @@ class RedisServer(object):
   def add_user(self, username, password):
     userkey = self.keystart+'user-'+username
     if self.redis.exists('chat-user-'
+    ...
+    pwd_context.encrypt(password)
   """
