@@ -284,10 +284,10 @@ class TestRedisInit(unittest.TestCase):
 
   def test_add_user(self):
     r = chatredis.RedisServer(keystart='test')
+    r.redis.delete('test-user-user')
     self.assertEqual(r.add_user('user','password'), True)
     self.assertEqual(r.add_user('user','password'), False)
-    print "---"
-    self.assertEqual(r.authenticate('user','password'), True)
-    r.redis.delete(r.make_key('user','user'))
+    self.assertEqual(type(r.authenticate('user','password')), dict)
+    r.redis.delete('test-user-user')
     
 
