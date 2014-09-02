@@ -226,25 +226,30 @@ class TestBroadcast(unittest.TestCase):
 
 class TestRedisInit(unittest.TestCase):
   def test_init(self):
-    r = chatredis.RedisServer()
+    r = chatredis.RedisServer(keystart='test')
     self.assertEqual(str(r.redis),
                      'StrictRedis<ConnectionPool<Connection' +
                      '<host=localhost,port=6379,db=0>>>')
-    self.assertEqual(r.keystart, 'chat')
+    self.assertEqual(r.keystart, 'test')
    
     # make sure named arguments work...
-    r = chatredis.RedisServer(host='127.0.0.1')
+    r = chatredis.RedisServer(host='127.0.0.1', keystart='test')
     self.assertEqual(str(r.redis),
                      'StrictRedis<ConnectionPool<Connection'+
                      '<host=127.0.0.1,port=6379,db=0>>>')
     
-    r = chatredis.RedisServer(port=6380)
+    r = chatredis.RedisServer(port=6380, keystart='test')
     self.assertEqual(str(r.redis),
                      'StrictRedis<ConnectionPool<Connection'+
                      '<host=localhost,port=6380,db=0>>>')
 
+  def test_make_key(self):
+    r = chatredis.RedisServer(keystart='test')
+    self.assertEqual(r.make_key('user', 'username'),
+                     'test-user-username') 
+
   def test_authenticate(self): 
-    r = chatredis.RedisServer()
+    r = chatredis.RedisServer(keystart='test')
     username='username!#$!@%!<S-F1>!@'
     password='fasdjl;fjl234j59[p136yQ#^$AWGVHawe90vgy 3904wguifhj'
     r.redis.set(r.make_key('user',username),
@@ -274,3 +279,15 @@ class TestRedisInit(unittest.TestCase):
                 json.dumps({}))
     self.assertEqual(r.authenticate(username,password),
                      False)
+
+    r.redis.delete(r.make_key('user',username))
+
+  def test_add_user(self):
+    r = chatredis.RedisServer(keystart='test')
+    self.assertEqual(r.add_user('user','password'), True)
+    self.assertEqual(r.add_user('user','password'), False)
+    print "---"
+    self.assertEqual(r.authenticate('user','password'), True)
+    r.redis.delete(r.make_key('user','user'))
+    
+

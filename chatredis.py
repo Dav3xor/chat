@@ -15,25 +15,32 @@ class RedisServer(object):
    
     json_user = self.redis.get(user_key)
     if not json_user:
+      print "doesn't exist"
       return False
 
     try:
       user = json.loads(json_user)
     except ValueError,TypeError:
+      print "not json"
       return False
 
     if 'pwhash' not in user:
+      print "no hash"
       return False
 
     if pwd_context.verify(password, user['pwhash']):
       return user
     else:
+      print "bad password"
       return False
 
-  """
   def add_user(self, username, password):
-    userkey = self.keystart+'user-'+username
-    if self.redis.exists('chat-user-'
-    ...
-    pwd_context.encrypt(password)
-  """
+    user_key = self.make_key('user',username)
+
+    # user already exists
+    if self.redis.exists(user_key):
+      return False
+    user = { 'pwhash': pwd_context.encrypt(password) }
+    self.redis.set(user_key, user)
+    return True
+  
