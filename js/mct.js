@@ -41,7 +41,6 @@ function MegaChataTron(hostname)
     while(this.msgs.length) {
       // TODO: stop sending if connection goes down...
       nextmsg = this.msgs.pop();
-      alert("--> "+JSON.stringify(nextmsg));
       this.connection.send(JSON.stringify(nextmsg));
     }
   }
@@ -52,11 +51,9 @@ function MegaChataTron(hostname)
       if(this.msgs.length > 0) {
         this.emptyQueue();
       }
-      //alert(JSON.stringify(msg));
       this.connection.send(JSON.stringify(msg));
     } else {
       this.msgs.unshift(msg);
-      //alert(JSON.stringify(this.msgs));
     }
   }
       
@@ -76,9 +73,7 @@ function MegaChataTron(hostname)
     }
     this.connection.onmessage = function (e) {
       var msg = JSON.parse(e.data);
-      alert(JSON.stringify(msg));
       obj.handleMessage(msg); 
-      //alert('recieved: '+ e.data);
     }
     this.state                = this.STATE_CONNECTING;
   }

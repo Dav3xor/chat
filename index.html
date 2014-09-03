@@ -26,52 +26,78 @@
 
 
   <body>
+                                         
+ 
+    <div class="navbar navbar-fixed-top navbar-inverse" role="navigation">
+      <div class="container">
+        <div class="navbar-header">
+          <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+            <span class="sr-only">Toggle navigation</span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+          <a class="navbar-brand" href="#"><strong>MEGACHATATRON</strong></a>
+        </div>
+        <div class="collapse navbar-collapse">
+          <ul class="nav navbar-nav">
+            <li class="active"><a href="#">Home</a></li>
+            <li><a href="#about">About</a></li>
+            <li><a href="#contact">Contact</a></li>
+          </ul>
+        </div><!-- /.nav-collapse -->
+      </div><!-- /.container -->
+    </div><!-- /.navbar -->
 
-      <div class="navbar navbar-fixed-top navbar-inverse" role="navigation">
-        <div class="container">
-          <div class="navbar-header">
-            <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
-              <span class="sr-only">Toggle navigation</span>
-              <span class="icon-bar"></span>
-              <span class="icon-bar"></span>
-              <span class="icon-bar"></span>
+    <div style="position: absolute; top: 58px; left: 0px; right: 0px; bottom:90px;" 
+         id="content">
+      <div style="height:100%;" class="container well">
+
+      <div style="width:80%" class="modal fade" id="login-modal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal">
+              <span aria-hidden="true">&times;</span>
+              <span class="sr-only">Close</span>
             </button>
-            <a class="navbar-brand" href="#"><strong>MEGACHATATRON</strong></a>
+            <h4 class="modal-title">Login (or Create Account...)</h4>
           </div>
-          <div class="collapse navbar-collapse">
-            <ul class="nav navbar-nav">
-              <li class="active"><a href="#">Home</a></li>
-              <li><a href="#about">About</a></li>
-              <li><a href="#contact">Contact</a></li>
-            </ul>
-          </div><!-- /.nav-collapse -->
-        </div><!-- /.container -->
-      </div><!-- /.navbar -->
-
-      <div style="position: absolute; top: 58px; left: 0px; right: 0px; bottom:90px;" 
-           id="content">
-        <div style="height:100%;" class="container well">
-
-
-          <table id="chattable" style="width:100%" class="table table-striped">
-             <tr><td><strong>Dav3xor</strong>:</td><td>hello there, do you wish to purchase some lovely Cutco knives, or perhaps a Kerby vacuum?</td></tr>
-             <tr><td><strong>Bubba</strong>:</td><td>yes, greetings</td></tr>
-          </table>
-
-        </div>
-      </div>
-
-      <div style="position: absolute; bottom: 5px; height:80px; left: 0px; right: 0px;" id="footer">
-        <div class="container well">
-          <div class="col-xl-12">
-            <form id = "msginputform">
-              <textarea style="background-color: #111111; color:white;" 
-                        autofocus=autofocus 
-                        class="form-control" id="msg" name="msg"></textarea>
-            </form>
+          <div class="modal-body">
+            <label>Login:</label><input type="text" id="login">
+            <label>Password:</label><input type="text" id="password">
+                                    <button id="login-button" 
+                                            type="button" 
+                                            class="class btn btn-primary">
+                                      Login
+                                    </button>
+                                    <button id="login-button" 
+                                            type="button" 
+                                            class="class btn btn-primary">
+                                      Create Account
+                                    </button>
           </div>
         </div>
       </div>
+
+        <table id="chattable" style="width:100%" class="table table-striped">
+           <tr><td><strong>Dav3xor</strong>:</td><td>hello there, do you wish to purchase some lovely Cutco knives, or perhaps a Kerby vacuum?</td></tr>
+           <tr><td><strong>Bubba</strong>:</td><td>yes, greetings</td></tr>
+        </table>
+
+      </div>
+    </div>
+
+    <div style="position: absolute; bottom: 5px; height:80px; left: 0px; right: 0px;" id="footer">
+      <div class="container well">
+        <div class="col-xl-12">
+          <form id = "msginputform">
+            <textarea style="background-color: #111111; color:white;" 
+                      autofocus=autofocus 
+                      class="form-control" id="msg" name="msg"></textarea>
+          </form>
+        </div>
+      </div>
+    </div>
     <script src="/js/mct.js"></script>
     <script>
 
@@ -81,11 +107,11 @@
         // TODO: handle channel
         // TODO: markdown
         if (msg.mtype == 'msg') {
-          alert('got message');
           $('#chattable').append("<tr><td><strong>"+msg.from+"</strong></td>"+
                                  "<td>"+msg.msg+"</td></tr>");
         }
       }
+      $('#login-modal').modal('show'); 
       connection.login('Dav3xor','password');
       connection.join('Dav3stown') 
       $('#msginputform').keypress(function(e) {
