@@ -293,4 +293,5 @@ class TestRedisInit(unittest.TestCase):
     self.assertEqual(r.add_user('user2','password2'), True)
     self.assertEqual(r.add_user('user2','password'), False)
     self.assertEqual(type(r.authenticate('user2','password2')), dict)
+    r.redis.delete('test-user-user2')
 

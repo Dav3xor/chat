@@ -33,6 +33,10 @@ class chat_handler(object):
                               'fields':  {'mtype':    type_restraints,
                                           'user':    [str, 24, None], 
                                           'pass':    [str, 16, None]}},
+                      'new user':{'handler': self.new_user,
+                                  'fields':  {'mtype':    type_restraints,
+                                              'user':    [str, 24, None], 
+                                              'pass':    [str, 16, None]}},
                       'join':{'handler': self.join,
                               'fields':  {'mtype':    type_restraints, 
                                           'channel': channel_restraints}},
@@ -60,7 +64,7 @@ class chat_handler(object):
             del(self.channel_to_users[channel])  
           del(self.user_to_channels[olduser])
 
-
+  
 
   def authenticate(self, ws, msg, fileno):
     username = msg['user']
@@ -83,6 +87,19 @@ class chat_handler(object):
       return True
     else:
       return False
+
+  def new_user(self, ws, msg, fileno):
+    username = msg['user']
+    password = msg['pass']
+
+    # TODO: switch over to storing user crap in db
+    if username in self.passwords:
+      return False
+    else:
+      self.passwords[username] =  password
+      return self.authenticate(self, ws, msg, fileno)
+       
+
 
   def join(self, ws, msg, fileno):
     if fileno not in self.connection_to_user:
