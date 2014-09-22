@@ -7,8 +7,8 @@ import json
 from pprint import pprint
 
 class chat_handler(object):
-  def __init__(self):
-    self.passwords            = {'Dav3xor':'password', 'User':'x'} 
+  def __init__(self, keystart='chat'):
+    self.redis               = chatredis.RedisServer(keystart=keystart)
 
     # { 1: "Dav3xor", 2: "Frank", 3: "Bob", 4: "Bob" ... }
     self.connection_to_user  = {}
@@ -70,12 +70,10 @@ class chat_handler(object):
     username = msg['user']
     password = msg['pass']
    
-
-    # TODO: switch over to storing user crap in db
-    if (username in self.passwords) and (password == self.passwords[username]): 
-      
+    user = self.redis.authenticate(username, password)
+    if user:
       # log out existing authenticated user, if existing...
-      self. drop_fileno(fileno)
+      self.drop_fileno(fileno)
 
       self.connection_to_user[fileno] = username
 
@@ -92,12 +90,10 @@ class chat_handler(object):
     username = msg['user']
     password = msg['pass']
 
-    # TODO: switch over to storing user crap in db
-    if username in self.passwords:
-      return False
-    else:
-      self.passwords[username] =  password
-      return self.authenticate(self, ws, msg, fileno)
+    # redis.new_user returns false if the
+    # user already exists.
+    redis.new_user(username, password)
+    return self.authenticate(self, ws, msg, fileno)
        
 
 

@@ -12,7 +12,7 @@ class WSStub(object):
 
 class TestInit(unittest.TestCase):
   def test_init(self):
-    handler = chatserver.chat_handler()
+    handler = chatserver.chat_handler(keystart='test')
     self.assertEqual(handler.connection_to_user,{})
     self.assertEqual(handler.user_to_connections,{})
     self.assertEqual(handler.user_to_channels,{})
@@ -21,7 +21,11 @@ class TestInit(unittest.TestCase):
 class TestAuthenticate(unittest.TestCase):
   def test_authenticate(self):
     ws = WSStub()
-    handler = chatserver.chat_handler()
+    handler = chatserver.chat_handler(keystart='test')
+    
+    # add our test users    
+    self.assertEqual(type(handler.redis.new_user('Dav3xor', 'password')), dict)
+    self.assertEqual(type(handler.redis.new_user('User', 'x')), dict)
 
     # failed password...
     self.assertEqual(handler.authenticate(ws, {'mtype': 'auth', 
@@ -75,12 +79,18 @@ class TestAuthenticate(unittest.TestCase):
     self.assertEqual(handler.user_to_connections,{'Dav3xor': set([2]), 'User': set([1])})
     self.assertEqual(handler.user_to_channels,{})
     self.assertEqual(handler.channel_to_users,{})
+    handler.redis.redis.delete('test-user-Dav3xor')
+    handler.redis.redis.delete('test-user-User')
 
 class TestJoin(unittest.TestCase):
   def test_join(self):
     ws = WSStub()
-    handler = chatserver.chat_handler()
+    handler = chatserver.chat_handler(keystart='test')
     
+    # add our test users    
+    self.assertEqual(type(handler.redis.new_user('Dav3xor', 'password')), dict)
+    self.assertEqual(type(handler.redis.new_user('User', 'x')), dict)
+
     self.assertEqual(handler.authenticate(ws, {'mtype': 'auth', 
                                                'user':'User',
                                                'pass':'x'},1),
@@ -127,11 +137,18 @@ class TestJoin(unittest.TestCase):
     self.assertEqual(handler.user_to_channels,{'Dav3xor': set(['channel2']), 
                                                'User': set(['channel1', 'channel2'])})
     self.assertEqual(handler.channel_to_users,{'channel2': set(['User', 'Dav3xor']), 'channel1': set(['User'])})
+    
+    handler.redis.redis.delete('test-user-Dav3xor')
+    handler.redis.redis.delete('test-user-User')
 
 class TestMessage(unittest.TestCase):
   def testmessage(self):
     ws = WSStub()
-    handler = chatserver.chat_handler()
+    handler = chatserver.chat_handler(keystart='test')
+    
+    # add our test users    
+    self.assertEqual(type(handler.redis.new_user('Dav3xor', 'password')), dict)
+    self.assertEqual(type(handler.redis.new_user('User', 'x')), dict)
    
     # try to send a message with no user or fileno.. 
     self.assertEqual(handler.message(ws, {'mtype': 'msg', 'to': 'Dav3stown', 'msg':'Hello World'},1), 
@@ -205,12 +222,14 @@ class TestMessage(unittest.TestCase):
                                   '"from": "User", ' +
                                   '"msg": "Hello World3"}'])
 
+    handler.redis.redis.delete('test-user-Dav3xor')
+    handler.redis.redis.delete('test-user-User')
     
 
 class TestBroadcast(unittest.TestCase):
   def test_broadcast(self):
     ws = WSStub()
-    handler = chatserver.chat_handler()
+    handler = chatserver.chat_handler(keystart='test')
     self.assertEqual(handler.broadcast(ws, '"test"', [1,2]), 
                      '[1, 2] - "\\"test\\""') 
 
@@ -282,16 +301,16 @@ class TestRedisInit(unittest.TestCase):
 
     r.redis.delete(r.make_key('user',username))
 
-  def test_add_user(self):
+  def test_new_user(self):
     r = chatredis.RedisServer(keystart='test')
     r.redis.delete('test-user-user')
-    self.assertEqual(r.add_user('user','password'), True)
-    self.assertEqual(r.add_user('user','password'), False)
+    self.assertEqual(type(r.new_user('user','password')), dict)
+    self.assertEqual(r.new_user('user','password'), False)
     self.assertEqual(type(r.authenticate('user','password')), dict)
     r.redis.delete('test-user-user')
     
-    self.assertEqual(r.add_user('user2','password2'), True)
-    self.assertEqual(r.add_user('user2','password'), False)
+    self.assertEqual(type(r.new_user('user2','password2')), dict)
+    self.assertEqual(r.new_user('user2','password'), False)
     self.assertEqual(type(r.authenticate('user2','password2')), dict)
     r.redis.delete('test-user-user2')
 

@@ -10,6 +10,10 @@ class RedisServer(object):
   def make_key(self,keytype,key):
     return self.keystart+'-'+keytype+'-'+key
 
+  def user_exists(self, username):
+    # TODO: maybe cache users to reduce round trips to server?
+    return self.redis.exists(self.make_key('user', username))
+    
   def authenticate(self, username, password):
     user_key = self.make_key('user',username)
    
@@ -30,7 +34,7 @@ class RedisServer(object):
     else:
       return False
 
-  def add_user(self, username, password):
+  def new_user(self, username, password):
     user_key = self.make_key('user',username)
 
     # user already exists
@@ -38,5 +42,5 @@ class RedisServer(object):
       return False
     user = { 'pwhash': pwd_context.encrypt(password) }
     self.redis.set(user_key, json.dumps(user))
-    return True
+    return user
   
