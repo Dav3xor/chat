@@ -65,18 +65,19 @@
           <div class="modal-body">
             <table class="login">
               <tr><td style="padding:5px;">Login:</td><td style="padding:5px;"><input type="text" id="login"></td></tr>
-              <tr><td style="padding:5px;">Password:</td><td style="padding:5px;"><input type="text" id="password"></td></tr>
+              <tr><td style="padding:5px;">Password:</td><td style="padding:5px;"><input type="password" id="password"></td></tr>
             </table>
             <hr>
             <div> 
               <button id="login-button" 
                       type="button" 
+                      onclick="connection.login($('#login').val(), $('#password').val());" 
                       class="class btn btn-primary">
                 Login
               </button>
               <span style="color:white;">or...</span>
               <button id="login-button" 
-                      type="button" 
+                      type="button"
                       class="class btn btn-primary">
                 Create Account
               </button>
@@ -102,13 +103,28 @@
                       class="form-control" id="msg" name="msg"></textarea>
           </form>
         </div>
+        <div style="border-radius: 5px; background-color:black; padding: 0px 8px; border: 1px solid white; position: relative; bottom: 110px; float: right; display:none;" id="status">
+          status message full of a bunch of crap and stuff to trigger shittiness
+        </div>
       </div>
     </div>
+
+
     <script src="/js/mct.js"></script>
     <script>
 
       var connection = new MegaChataTron('ws://localhost:8000/');
 
+
+      connection.handleStatus  = function(status) {
+        if (status.success == true) {
+          $('#status').html('Ok');
+        } else {
+          $('#status').html('Error:'+status.error);
+        }
+        $('#status').show('fast');
+        setTimeout(function () {$('#status').hide('slow');}, 5000);
+      }        
       connection.handleMessage = function(msg) {
         // TODO: handle channel
         // TODO: markdown
@@ -118,8 +134,7 @@
         }
       }
       $('#login-modal').modal('show'); 
-      connection.login('Dav3xor','password');
-      connection.join('Dav3stown') 
+      
       $('#msginputform').keypress(function(e) {
         if (e.keyCode == 13) {
           e.preventDefault();
@@ -128,6 +143,8 @@
           $('#msg').val('');
         }
       });
+
+      connection.handleStatus({success: true});
     </script>
   </body>
 </html>

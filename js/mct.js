@@ -73,7 +73,7 @@ function MegaChataTron(hostname)
     }
     this.connection.onmessage = function (e) {
       var msg = JSON.parse(e.data);
-      obj.handleMessage(msg); 
+      obj.handleMessage(msg);
     }
     this.state                = this.STATE_CONNECTING;
   }
