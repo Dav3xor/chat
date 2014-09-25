@@ -37,6 +37,8 @@ class chat_handler(object):
                                   'fields':  {'mtype':    type_restraints,
                                               'user':    [str, 24, None], 
                                               'pass':    [str, 16, None]}},
+                      'channels':{'handler': self.channels,
+                                  'fields':  {'mtype':    type_restraints}},
                       'join':{'handler': self.join,
                               'fields':  {'mtype':    type_restraints, 
                                           'channel': channel_restraints}},
@@ -95,7 +97,10 @@ class chat_handler(object):
     redis.new_user(username, password)
     return self.authenticate(self, ws, msg, fileno)
        
-
+  def channels(self, ws, msg, fileno):
+    channels = self.channel_to_users.keys()
+    self.broadcast(ws, channels, (fileno,))
+    return True
 
   def join(self, ws, msg, fileno):
     if fileno not in self.connection_to_user:

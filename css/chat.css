@@ -3,3 +3,6 @@ header {display:block; background-color:green; height:2px;}
 footer {display:block; background-color:blue; height:0px;}
 section { background-color:red; display:block; overflow:auto;}
 section .push {height:4000px;}
+
+div .hidden { display:none; }
+

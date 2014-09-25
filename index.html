@@ -146,6 +146,44 @@
 
       connection.handleStatus({success: true});
     </script>
+
+
+    <div class="modal-body hidden">
+      <table class="login">
+        <tr>
+          <td style="padding:5px;">Join a Channel:</td>
+          <td style="padding:5px;">
+            <select>
+              <option>Davestown</option>
+              <option>Other Channel</option>
+            </select>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:5px;">Start a New Channel:</td>
+          <td style="padding:5px;">
+            <select>
+              <option>Davestown</option>
+              <option>Other Channel</option>
+            </select>
+          </td>
+        </tr>
+      </table>
+      <hr>
+      <div> 
+        <button id="login-button" 
+                type="button" 
+                onclick="connection.login($('#login').val(), $('#password').val());" 
+                class="class btn btn-primary">
+          Join
+        </button>
+      </div>
+    </div>
+
+
+
+
+
   </body>
 </html>
 
