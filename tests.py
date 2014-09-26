@@ -86,15 +86,18 @@ class TestChannels(unittest.TestCase):
   def test_channels(self):
     ws = WSStub()
     handler = chatserver.chat_handler(keystart='test')
+    handler.channel_to_users['Davestown'] = {}
     
     self.assertEqual(handler.channels(ws, {'mtype': 'channels'},1),True)
-    self.assertEqual(ws.history,'')
+    self.assertEqual(ws.history,[(1,), '["Davestown"]'])
 
 class TestJoin(unittest.TestCase):
   def test_join(self):
     ws = WSStub()
     handler = chatserver.chat_handler(keystart='test')
-    handler.channel_to_users['Davestown'] = {}
+    handler.redis.redis.delete('test-user-Dav3xor')
+    handler.redis.redis.delete('test-user-User')
+    #handler.channel_to_users['Davestown'] = {}
     
     # add our test users    
     self.assertEqual(type(handler.redis.new_user('Dav3xor', 'password')), dict)
@@ -154,6 +157,8 @@ class TestMessage(unittest.TestCase):
   def testmessage(self):
     ws = WSStub()
     handler = chatserver.chat_handler(keystart='test')
+    handler.redis.redis.delete('test-user-Dav3xor')
+    handler.redis.redis.delete('test-user-User')
     
     # add our test users    
     self.assertEqual(type(handler.redis.new_user('Dav3xor', 'password')), dict)
