@@ -82,10 +82,10 @@ class chat_handler(object):
       if username not in self.user_to_connections:
         self.user_to_connections[username] = set()
       self.user_to_connections[username].add(fileno)
-
-      self.broadcast(ws,"{mtype:'auth', status:'ok'}",[fileno])
+      self.broadcast(ws,{'mtype':'auth', 'success':True, 'status':'Logged In'},[fileno])
       return True
     else:
+      self.broadcast(ws,{'mtype':'auth', 'success':False, 'status':'Error: Invalid Username or Password'},[fileno])
       return False
 
   def new_user(self, ws, msg, fileno):

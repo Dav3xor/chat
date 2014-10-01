@@ -74,6 +74,9 @@ function MegaChataTron(hostname)
     this.connection.onmessage = function (e) {
       var msg = JSON.parse(e.data);
       obj.handleMessage(msg);
+      if (msg.status) {
+        obj.handleStatus(msg);
+      }
     }
     this.state                = this.STATE_CONNECTING;
   }
