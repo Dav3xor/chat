@@ -23,6 +23,17 @@ function MegaChataTron(hostname)
                'pass': password};
     this.send(msg);
   }
+
+  this.new_user   = function(username, password) {
+    if(this.state === this.STATE_DISCONNECTED){
+      this.connect();
+    }
+    var msg = {'mtype': 'new user', 
+               'user': username, 
+               'pass': password};
+    this.send(msg);
+  }
+
   this.msg         = function(text, to) {
     var msg = {'mtype': 'msg',
                'to':   to,

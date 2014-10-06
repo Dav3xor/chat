@@ -94,8 +94,8 @@ class chat_handler(object):
 
     # redis.new_user returns false if the
     # user already exists.
-    redis.new_user(username, password)
-    return self.authenticate(self, ws, msg, fileno)
+    self.redis.new_user(username, password)
+    return self.authenticate(ws, msg, fileno)
        
   def channels(self, ws, msg, fileno):
     channels = self.channel_to_users.keys()

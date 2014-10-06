@@ -42,7 +42,7 @@
         <div class="collapse navbar-collapse">
           <ul class="nav navbar-nav">
             <li class="active" id="login_tab"><a href="#">Login</a></li>
-            <li><a href="#about">Channels</a></li>
+            <li><a href="#channels" onclick="$('#login_modal').html($('#channel_list').html()); $('#login_modal').modal('show');">Channels</a></li>
             <li><a href="#contact">About</a></li>
           </ul>
         </div><!-- /.nav-collapse -->
@@ -53,7 +53,7 @@
          id="content">
       <div style="height:100%;" class="container well">
 
-      <div style="top:50px; width:320px; margin-left: auto; margin-right:auto;" class="modal fade" id="login-modal">
+      <div style="top:50px; width:320px; margin-left: auto; margin-right:auto;" class="modal fade" id="login_modal">
         <div class="modal-content">
           <div class="modal-header">
             <button type="button" class="close" data-dismiss="modal">
@@ -78,6 +78,7 @@
               <span style="color:white;">or...</span>
               <button id="login-button" 
                       type="button"
+                      onclick="connection.new_user($('#login').val(), $('#password').val());" 
                       class="class btn btn-primary">
                 Create Account
               </button>
@@ -131,7 +132,7 @@
                                  "<td>"+msg.msg+"</td></tr>");
         }
       }
-      $('#login-modal').modal('show'); 
+      $('#login_modal').modal('show'); 
       
       $('#msginputform').keypress(function(e) {
         if (e.keyCode == 13) {
@@ -146,7 +147,15 @@
     </script>
 
 
-    <div id="channel_list" class="modal-body hidden">
+  <div id="channel_list" class="modal-content hidden">
+    <div class="modal-header">
+      <button type="button" class="close" data-dismiss="modal">
+        <span aria-hidden="true">&times;</span>
+        <span class="sr-only">Close</span>
+      </button>
+      <h4 class="modal-title">Channels:</h4>
+    </div>
+    <div class="modal-body hidden">
       <table class="login">
         <tr>
           <td style="padding:5px;">Join a Channel:</td>
@@ -160,10 +169,7 @@
         <tr>
           <td style="padding:5px;">Start a New Channel:</td>
           <td style="padding:5px;">
-            <select>
-              <option>Davestown</option>
-              <option>Other Channel</option>
-            </select>
+            <input type="text" id="new_channel"></input>
           </td>
         </tr>
       </table>
@@ -177,7 +183,7 @@
         </button>
       </div>
     </div>
-
+  </div>
 
 
 
